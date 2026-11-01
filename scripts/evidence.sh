@@ -25,32 +25,72 @@
 #   scripts/evidence.sh "diffusion / ComfyUI pipelines" --k 4 --full
 set -euo pipefail
 
-usage() { sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+usage() {
+  sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-2}"
+}
 
-query=""; scope=""; k=6; full=0
+query=""
+scope=""
+k=6
+full=0
 types="contribution,hard_problem,skill_evidence,architecture_decision,unique_strength,subsystem,cross_repo_theme"
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --scope) scope="${2:-}"; shift 2 ;;
-    --types) types="${2:-}"; shift 2 ;;
-    --k)     k="${2:-6}"; shift 2 ;;
-    --full)  full=1; shift ;;
-    -h|--help) usage 0 ;;
-    -*) echo "unknown flag: $1" >&2; usage ;;
-    *)  if [ -z "$query" ]; then query="$1"; else echo "unexpected arg: $1" >&2; usage; fi; shift ;;
+  --scope)
+    scope="${2:-}"
+    shift 2
+    ;;
+  --types)
+    types="${2:-}"
+    shift 2
+    ;;
+  --k)
+    k="${2:-6}"
+    shift 2
+    ;;
+  --full)
+    full=1
+    shift
+    ;;
+  -h | --help) usage 0 ;;
+  -*)
+    echo "unknown flag: $1" >&2
+    usage
+    ;;
+  *)
+    if [ -z "$query" ]; then query="$1"; else
+      echo "unexpected arg: $1" >&2
+      usage
+    fi
+    shift
+    ;;
   esac
 done
-[ -n "$query" ] || { echo "error: a query string is required" >&2; usage; }
-case "$k" in ''|*[!0-9]*) echo "error: --k must be an integer" >&2; exit 2 ;; esac
+[ -n "$query" ] || {
+  echo "error: a query string is required" >&2
+  usage
+}
+case "$k" in '' | *[!0-9]*)
+  echo "error: --k must be an integer" >&2
+  exit 2
+  ;;
+esac
 
 : "${RAGDB_URI:?set RAGDB_URI to the ragdb connection string (loopback pgvector career store)}"
-command -v psql >/dev/null 2>&1 || { echo "error: psql not found on PATH" >&2; exit 1; }
+command -v psql >/dev/null 2>&1 || {
+  echo "error: psql not found on PATH" >&2
+  exit 1
+}
 
 # Stale-cache gate: the table is derived from the Drive JSONL (docs/adr/0002). A row count
 # that differs means an edit to the source has not been rebuilt — refuse rather than answer
 # from a cache that no longer matches its source.
 src="${JOBSEEK_DRIVE_DIR:?set JOBSEEK_DRIVE_DIR to the job-search folder in Drive}/evidence/career_docs.jsonl"
-[ -f "$src" ] || { echo "error: no \$JOBSEEK_DRIVE_DIR/evidence/career_docs.jsonl" >&2; exit 1; }
+[ -f "$src" ] || {
+  echo "error: no evidence/career_docs.jsonl under JOBSEEK_DRIVE_DIR" >&2
+  exit 1
+}
 want=$(grep -c . "$src" || true)
 have=$(psql "$RAGDB_URI" -X -tA -c "SELECT count(*) FROM career_docs" 2>/dev/null || echo "missing")
 if [ "$have" != "$want" ]; then
@@ -59,9 +99,12 @@ if [ "$have" != "$want" ]; then
 fi
 
 # Sanitize the doc_type CSV into a safe SQL array literal (letters/underscores only).
-types_sql=$(printf '%s' "$types" | tr ',' '\n' \
-  | sed 's/[^a-z_]//g' | sed '/^$/d' | sed "s/.*/'&'/" | paste -sd, -)
-[ -n "$types_sql" ] || { echo "error: --types produced no valid doc_type" >&2; exit 2; }
+types_sql=$(printf '%s' "$types" | tr ',' '\n' |
+  sed 's/[^a-z_]//g' | sed '/^$/d' | sed "s/.*/'&'/" | paste -sd, -)
+[ -n "$types_sql" ] || {
+  echo "error: --types produced no valid doc_type" >&2
+  exit 2
+}
 
 cols="doc_type, '['||source_class||'] '||title AS title, company, repo"
 [ "$full" -eq 1 ] && cols="$cols, content"

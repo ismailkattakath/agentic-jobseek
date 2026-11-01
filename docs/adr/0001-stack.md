@@ -25,9 +25,11 @@ evidence gate, the skills and the scripts, not a new stack.
 ## Rejected
 
 - **A `.mcp.json` full of servers.** Everything above is user scope or a plugin.
-- **A flake.** No compiled code, no hooks to test, and every tool is already on PATH.
-  `agentic-nomad` has one for its hook tests; this repo has none.
+- **`jsonresume` in the flake.** It is the fleet's wrapper and renders through a system Chrome;
+  a copy here would be a second pin. The flake (adopted 2026-11-01, the agentic-nomad shape)
+  provides everything else the scripts call, and its `project-gate` runs shellcheck plus a
+  scaffold into a fake data folder — it caught a real SC2016 regression on its first run.
 - **A generated HTML dashboard.** The old repo vendored a design system to render one from
-  `status.md`. A second copy of a design system to show eighteen rows is ceremony; if the
+  `status.md`. A second copy of a design system to show a handful of rows is ceremony; if the
   pipeline outgrows `status.md`, the next step is a Google Sheet, not a dashboard.
 - **Storing data in this repo.** See ADR-0002 and `rules/no-data-here.md`.

@@ -17,18 +17,37 @@ set -euo pipefail
 table="career_docs"
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --table) table="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "unknown arg: $1" >&2; exit 2 ;;
+  --table)
+    table="${2:-}"
+    shift 2
+    ;;
+  -h | --help)
+    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  *)
+    echo "unknown arg: $1" >&2
+    exit 2
+    ;;
   esac
 done
-case "$table" in ''|*[!a-z0-9_]*) echo "error: --table must be [a-z0-9_]+" >&2; exit 2 ;; esac
+case "$table" in '' | *[!a-z0-9_]*)
+  echo "error: --table must be [a-z0-9_]+" >&2
+  exit 2
+  ;;
+esac
 
 : "${RAGDB_URI:?set RAGDB_URI to the ragdb connection string (loopback pgvector store)}"
 data="${JOBSEEK_DRIVE_DIR:?set JOBSEEK_DRIVE_DIR to the job-search folder in Drive}"
 src="$data/evidence/career_docs.jsonl"
-[ -f "$src" ] || { echo "error: no \$JOBSEEK_DRIVE_DIR/evidence/career_docs.jsonl" >&2; exit 1; }
-command -v psql >/dev/null 2>&1 || { echo "error: psql not found on PATH" >&2; exit 1; }
+[ -f "$src" ] || {
+  echo "error: no evidence/career_docs.jsonl under JOBSEEK_DRIVE_DIR" >&2
+  exit 1
+}
+command -v psql >/dev/null 2>&1 || {
+  echo "error: psql not found on PATH" >&2
+  exit 1
+}
 
 # Validate every line parses and carries content + content_hash BEFORE touching the table,
 # and that content_hash really is sha256(content) — a hand-edited line with a stale hash would
@@ -59,7 +78,7 @@ PY
 # the JSON survive (COPY's text format would un-escape them).
 sql="$(mktemp)"
 trap 'rm -f "$sql"' EXIT
-cat > "$sql" <<'SQL'
+cat >"$sql" <<'SQL'
 CREATE TABLE IF NOT EXISTS :"tbl" (
   id                bigserial PRIMARY KEY,
   content           text NOT NULL,
@@ -130,4 +149,4 @@ COMMIT;
 CREATE INDEX IF NOT EXISTS :"idx" ON :"tbl" USING hnsw (embedding vector_cosine_ops);
 SELECT 'table ' || :'tbl' || ': ' || count(*) || ' rows, ' || count(embedding) || ' embedded' FROM :"tbl";
 SQL
-psql "$RAGDB_URI" -X -q -v ON_ERROR_STOP=1 -v tbl="$table" -f "$sql" < "$src"
+psql "$RAGDB_URI" -X -q -v ON_ERROR_STOP=1 -v tbl="$table" -f "$sql" <"$src"

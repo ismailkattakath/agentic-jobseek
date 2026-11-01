@@ -13,7 +13,10 @@ usage() {
 [ "$#" -eq 2 ] || usage
 
 data="${JOBSEEK_DRIVE_DIR:?set JOBSEEK_DRIVE_DIR to the job-search folder in Drive (CLAUDE.md § Where the data lives)}"
-[ -d "$data" ] || { echo "error: JOBSEEK_DRIVE_DIR is not a directory: $data" >&2; exit 1; }
+[ -d "$data" ] || {
+  echo "error: JOBSEEK_DRIVE_DIR is not a directory: $data" >&2
+  exit 1
+}
 
 # Repo root = parent of this script's directory (works from any CWD).
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,9 +28,9 @@ role="$2"
 
 # lowercase, non-alphanumeric -> single hyphen, trim leading/trailing hyphens.
 slugify() {
-  printf '%s' "$1" \
-    | tr '[:upper:]' '[:lower:]' \
-    | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+  printf '%s' "$1" |
+    tr '[:upper:]' '[:lower:]' |
+    sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
 }
 
 # Escape a string for safe use in a sed replacement (& / \ and the delimiter).
@@ -41,7 +44,10 @@ if [ -z "$cslug" ] || [ -z "$rslug" ]; then
 fi
 
 master="$data/base/resume.json"
-[ -f "$master" ] || { echo "error: no master resume at \$JOBSEEK_DRIVE_DIR/base/resume.json" >&2; exit 1; }
+[ -f "$master" ] || {
+  echo "error: no master resume at base/resume.json under JOBSEEK_DRIVE_DIR" >&2
+  exit 1
+}
 
 rel="applications/$cslug/$rslug"
 dir="$data/$rel"
@@ -60,10 +66,10 @@ mkdir -p "$dir"
 for f in "$templates"/*; do
   name="$(basename "$f")"
   sed -e "s/{{COMPANY}}/$ce/g" \
-      -e "s/{{ROLE}}/$re/g" \
-      -e "s/{{DATE}}/$today/g" \
-      -e "s/{{STAGE}}/draft/g" \
-      "$f" > "$dir/$name"
+    -e "s/{{ROLE}}/$re/g" \
+    -e "s/{{DATE}}/$today/g" \
+    -e "s/{{STAGE}}/draft/g" \
+    "$f" >"$dir/$name"
 done
 
 # The tailored resume starts as a copy of the master.

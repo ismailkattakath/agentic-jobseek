@@ -21,3 +21,8 @@ __pycache__/
 .DS_Store
 .claude/settings.local.json
 .claude/state/
+
+# Nix / direnv
+result
+result-*
+/.direnv/

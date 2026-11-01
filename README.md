@@ -29,5 +29,5 @@ See `CLAUDE.md` for the layout and the rules, and `docs/adr/` for the decisions.
 
 ## Needs
 
-`jsonresume` (over `resumed`), `jq`, `psql`, poppler (`pdfinfo`, `pdftotext`), Python 3.
-Optional: `jobspy`.
+`nix develop` (or `direnv allow`) supplies jq, psql, poppler, Python 3 and shellcheck.
+Bring your own `jsonresume` (over `resumed`). Optional: `jobspy`.

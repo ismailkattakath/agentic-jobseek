@@ -66,7 +66,8 @@ environment; a loopback store).
 
 ## Commands
 
-No build and no flake: the tools are on PATH (ADR-0001 says why).
+`nix develop` (or direnv's `use flake`) gives jq, psql, poppler, python3, shellcheck, gh and
+git. `jsonresume` stays the fleet's PATH tool — the flake header says why.
 
 ```bash
 scripts/new-application.sh "<Company>" "<Role>"            # scaffold a role folder in Drive
@@ -74,7 +75,8 @@ scripts/evidence.sh "<claim>" [--scope enterprise] [--full] # the evidence gate'
 scripts/evidence-rebuild.sh                                 # cache ← Drive JSONL (idempotent)
 scripts/render.sh "<folder>" "<Role Title>"                 # validate + render <Name>-<Role>.pdf
 scripts/final-check.py "<folder>"                           # pre-submit gate (exit 1 = fix first)
-shellcheck scripts/*.sh                                     # lint
+nix flake check                                             # formatting + toolchain + offline gate
+nix fmt                                                     # nixfmt + ruff-format + shfmt
 ```
 
 ## Non-negotiables
