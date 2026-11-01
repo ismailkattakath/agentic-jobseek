@@ -1,0 +1,4 @@
+{
+  "_comment": "Deliberately empty of servers — ADR-0001. Everything this project uses is user scope (the Indeed and Drive connectors) or an already-enabled plugin (the postgres MCP server in front of the evidence store). Declaring copies here would create a second pin to drift.",
+  "mcpServers": {}
+}

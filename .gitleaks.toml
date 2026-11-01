@@ -1,0 +1,20 @@
+# Mechanical floor for .claude/rules/no-data-here.md — catches SHAPES, not prose.
+# Default secret rules plus personal-data shapes. Fabricated examples are allowlisted by value.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "north-american-phone"
+description = "A phone number — a recruiter's, an interviewer's, or the operator's"
+regex = '''(?:\+?1[ .-]?)?\(?\b[2-9][0-9]{2}\)?[ .-][2-9][0-9]{2}[ .-][0-9]{4}\b'''
+
+[[rules]]
+id = "salary-figure"
+description = "A salary or offer figure (e.g. a six-figure amount with a currency) — data, never a procedure"
+regex = '''[$€£]\s?[0-9]{2,3},[0-9]{3}\b|\b[0-9]{2,3}k\s?(?:CAD|USD|EUR|GBP)\b'''
+
+[[allowlists]]
+description = "Fabricated worked examples"
+regexes = [
+  '''555[ .-][0-9]{4}''',
+]

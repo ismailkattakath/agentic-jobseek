@@ -1,0 +1,23 @@
+# Secrets — never committed
+.env
+.env.*
+!.env.example
+.envrc.local
+
+# Operator data lives OUTSIDE this repo (CLAUDE.md § Where the data lives).
+# These patterns are a backstop, not the protection.
+*.pdf
+*.docx
+*.jsonl
+*.csv
+resume.json
+applications/
+base/
+discovery/
+evidence/
+
+# Tooling
+__pycache__/
+.DS_Store
+.claude/settings.local.json
+.claude/state/

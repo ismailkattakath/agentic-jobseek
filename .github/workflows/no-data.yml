@@ -1,0 +1,19 @@
+# Mechanical floor for .claude/rules/no-data-here.md: secrets plus personal-data shapes,
+# over the WHOLE history (a value one commit adds and a later one removes still leaks).
+name: no-data
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  gitleaks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+      - name: gitleaks over all history
+        run: >
+          docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.30.1
+          git --no-banner --redact --config .gitleaks.toml .

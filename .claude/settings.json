@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "enabledMcpjsonServers": [],
+  "permissions": {
+    "allow": [
+      "Read(./docs/**)",
+      "Read(./.claude/**)",
+      "Bash(scripts/evidence.sh *)",
+      "Bash(scripts/final-check.py *)",
+      "Bash(jsonresume validate *)",
+      "Bash(jsonresume text *)",
+      "Bash(pdfinfo *)",
+      "Bash(pdftotext *)",
+      "Bash(shellcheck *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./.envrc.local)",
+      "Edit(./.envrc.local)",
+      "Bash(secret reveal *)",
+      "mcp__claude_ai_Google_Drive__share_file"
+    ]
+  }
+}
