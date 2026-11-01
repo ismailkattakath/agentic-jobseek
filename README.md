@@ -9,7 +9,8 @@ live in Google Drive, reached through `$JOBSEEK_DRIVE_DIR`.
 ## Setup
 
 ```bash
-export JOBSEEK_DRIVE_DIR="<your job-search folder in Drive for Desktop>"
+echo 'export JOBSEEK_DRIVE_DIR="<your job-search folder in Drive for Desktop>"' > .envrc.local
+direnv allow                       # .envrc sources the gitignored .envrc.local
 export RAGDB_URI="<a pgvector database with an embed(text) function>"
 scripts/evidence-rebuild.sh        # build the evidence cache from $JOBSEEK_DRIVE_DIR/evidence/
 ```

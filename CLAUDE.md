@@ -34,8 +34,10 @@ and why the RAG is a cache: `docs/adr/0002-data-and-evidence.md`.
 application's status, or a line of career evidence** (`rules/no-data-here.md`).
 
 Everything lives in **Google Drive**, synced by Drive for Desktop. The operator points
-`$JOBSEEK_DRIVE_DIR` at the job-search folder in Drive; no Drive path is written into this
-repo. Every script reads it as `${JOBSEEK_DRIVE_DIR:?}` and stops if it is unset.
+`$JOBSEEK_DRIVE_DIR` at the job-search folder in Drive, in the gitignored `.envrc.local` that
+the committed `.envrc` sources (direnv; the `agentic-nomad` pattern). No Drive path is
+written into this repo. Every script reads it as `${JOBSEEK_DRIVE_DIR:?}` and stops if it is
+unset.
 
 | What | Where, under `$JOBSEEK_DRIVE_DIR` |
 |---|---|
