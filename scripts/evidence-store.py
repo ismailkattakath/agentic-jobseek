@@ -400,6 +400,24 @@ def _rejected_text(rejected_by_doc, doc_id):
     return [_norm(r["content"]) for r in rejected_by_doc.get(doc_id, [])]
 
 
+def _coerce_draft(p, action):
+    """The routine's draft, in the one shape intake reads. An enrichment's canonical draft is
+    {"add_sentences": [...], "period_end": "...", "commit_refs": [...]} (routines/evidence-discover.md
+    § Draft); a routine run that wrote `draft` as a plain string, with period_end / commit_refs at
+    the proposal's top level, is accepted too (seen 2026-11-02, proposal-20261102T1916Z) — the
+    string is split into sentences. Anything else is returned unchanged for the caller to refuse."""
+    draft = p.get("draft")
+    if action != "enrich" or isinstance(draft, dict):
+        return draft
+    if isinstance(draft, list):
+        sentences = [str(x).strip() for x in draft if str(x).strip()]
+    elif isinstance(draft, str) and draft.strip():
+        sentences = [x.strip() for x in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9`(])", draft.strip()) if x.strip()]
+    else:
+        return draft
+    return {"add_sentences": sentences, "period_end": p.get("period_end"), "commit_refs": p.get("commit_refs") or []}
+
+
 def _sentences(draft, base_content, rejected=()):
     """(add, dropped): the draft's sentences not already in `base_content`, minus the ones any
     rejected version already contained (normalized); `dropped` lists those, for the report."""
@@ -479,7 +497,7 @@ def intake(proposal_path, run_path=None, dry_run=False):
         group, action = p.get("group", "?"), p.get("action")
         out = {"group": group, "action": action}
         rep["rows"].append(out)
-        draft = p.get("draft")
+        draft = _coerce_draft(p, action)
         if action == "skip":
             out["outcome"] = "dropped"
             continue

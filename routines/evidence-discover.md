@@ -99,7 +99,9 @@ three settings is ignored.
 7. **Draft.** For each group propose ONE action:
    - `enrich` — the group adds facts to an existing document (same system, same work): give its
      `target_doc_id` (the neighbour's `doc_id`, which intake matches on; for a pending target
-     it merges in place), the sentences to add, the new `period` end, and the `commit_refs` to append;
+     it merges in place), and `"draft": {"add_sentences": ["…", "…"], "period_end": "YYYY-MM",
+     "commit_refs": ["<sha or PR url>", …]}` — **an object, exactly these keys**; each sentence
+     stands alone (no "also", no pronoun pointing at the base document);
    - `new` — no existing document covers it: a full line in the `add-evidence` skill's schema
      (`.claude/skills/add-evidence/SKILL.md`) with every field — `title`, `content`, `doc_type`,
      `source_class` (`enterprise` · `personal-project` · `oss-contribution`), `company`, `repo`,
