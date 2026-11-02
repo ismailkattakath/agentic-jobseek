@@ -118,7 +118,7 @@ files' sha256 with `evidence_sync`; on drift it runs the sync before searching.
 | Per-run trace | The run file in Drive, plus the routine's own session log. |
 | **Backlog** | SessionStart digest (`scripts/evidence-digest.sh`, local files only): pending count, oldest pending age, last run's `until_at`. |
 | Cache **drift** | `evidence.sh` (§ 4). |
-| Cross-run trends | Later: Claude Code's native OTLP export from the cloud environment to a free Grafana Cloud stack, auth header injected by a network secret. Proven before adopted. |
+| Cross-run trends | **Built 2026-11-02.** Grafana Cloud over OTLP/HTTP JSON, gauges only. `scripts/evidence-metrics.py` pushes the store gauges (`evidence_docs{status}`, `evidence_pending_oldest_age_days`, `evidence_last_discovery_until_seconds`) at the end of every `evidence-sync.sh`, best-effort: a failed push only warns, an unconfigured one is silent. `scripts/evidence-metrics.py --eval` also records a retrieval-quality point (`evidence_retrieval_{ndcg_at_10,recall_at_10,mrr}{system}`, from `retrieval-eval.py score --json`); run it after a retrieval change, it is never automatic. The routine pushes its own run stats (`evidence_discover_*`, `service.name=evidence-discover`) as `routines/evidence-discover.md` step 11, with the `Authorization` header injected by the environment's network secret. Dashboard "Evidence pipeline" in the "Agentic Jobseek" folder. Configuration is `JOBSEEK_OTLP_{ENDPOINT,INSTANCE,SECRET}` in `.envrc.local`; the token stays in the Keychain. |
 
 ## 6. Names
 

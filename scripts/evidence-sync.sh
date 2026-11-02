@@ -10,7 +10,9 @@
 #                inserted, changed rows updated, versions that left every file deleted;
 #   4. embed     only versions not embedded under the CURRENT recipe (embed.py's SPEC), via
 #                scripts/embed.py fill (nomic-embed-text on this Mac's Ollama);
-#   5. record    each file's sha256 in `evidence_sync`, so a reader can detect drift.
+#   5. record    each file's sha256 in `evidence_sync`, so a reader can detect drift;
+#   6. gauges    best-effort: scripts/evidence-metrics.py pushes the store gauges to Grafana Cloud
+#                (skipped silently when unconfigured; a failure only warns).
 # Prints one counts line per run: "deleted X, updated Y, inserted Z, re-embed R" then "embedded E".
 # A second run on unchanged files prints all zeros and embeds nothing.
 #
@@ -46,7 +48,7 @@ while [ "$#" -gt 0 ]; do
     ;;
   --dry-run) shift ;;
   -h | --help)
-    sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
     ;;
   *)
@@ -254,3 +256,10 @@ SELECT 'table ' || :'tbl' || ': ' || count(*) || ' rows (approved ' || count(*) 
        || ', rejected ' || count(*) FILTER (WHERE status = 'rejected') || '), ' || count(embedding) || ' embedded'
 FROM :"tbl";
 SQL
+
+# Best-effort gauges for Grafana (docs/adr/0007 § 5): a push problem never fails the sync. Exit 3 means
+# push is not configured here (no endpoint, or the Keychain item is missing), which is silent on purpose.
+python3 -I "$here/evidence-metrics.py" || {
+  rc=$?
+  [ "$rc" = 3 ] || echo "warning: evidence-metrics push failed (exit $rc); the sync itself succeeded" >&2
+}

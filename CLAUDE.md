@@ -94,6 +94,7 @@ scripts/evidence-sync.sh                                    # intake inbox + inv
 scripts/evidence-review.py approve|reject <doc_id> --write  # move a pending document (ADR-0007; the tailor asks at point of use)
 scripts/evidence-dups.sh [--threshold 0.94]                 # near-duplicate pairs to review
 scripts/retrieval-eval.py build|pool|score                  # graded retrieval test (evidence/eval/)
+scripts/evidence-metrics.py [--eval] [--dry-run]            # push store gauges (+ a retrieval-quality point) to Grafana Cloud (ADR-0007 § 5)
 scripts/render.sh "<folder>" "<Role Title>"                 # validate + render + gate <Name>-<Role>.pdf
 scripts/theme-render.sh <resume.json> <out.pdf>            # theme only (add --input keywords=show)
 scripts/theme-check.py <resume.json> <pdf>                 # text-layer gate: order, completeness, splits

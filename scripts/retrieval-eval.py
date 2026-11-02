@@ -17,7 +17,7 @@ docs/adr/0006).
 
   pool    print the union of every system's top-k per query, as JSONL to judge.
   score   nDCG@10, Recall@10 (grade >= 1), Success@3 (a grade-2 doc in the top 3) and MRR
-          per system.
+          per system. --json prints the same numbers as one JSON object (full precision).
 """
 
 import argparse
@@ -83,6 +83,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("cmd", choices=["pool", "score"])
     ap.add_argument("--k", type=int, default=5)
+    ap.add_argument(
+        "--json",
+        action="store_true",
+        help="score: print one JSON object instead of the table (scripts/evidence-metrics.py --eval reads it)",
+    )
     args = ap.parse_args()
     env = db_env()
     systems = list(SYSTEMS)
@@ -122,10 +127,8 @@ def main():
         for r in load("qrels.jsonl"):
             qrels.setdefault(r["qid"], {})[r["doc_id"]] = r["grade"]
         queries = [q for q in load("queries.jsonl") if q["qid"] in qrels]
-        print(
-            f"queries judged: {len(queries)}  judgments: {sum(len(v) for v in qrels.values())}"
-        )
-        print(f"{'system':16} nDCG@10  R@10   S@3    MRR")
+        n_judged = sum(len(v) for v in qrels.values())
+        scores = {}
         for s in systems:
             nd = rc = s3 = mrr = 0.0
             for q in queries:
@@ -146,7 +149,25 @@ def main():
                     (1 / (i + 1) for i, h in enumerate(top) if g.get(h, 0) >= 1), 0
                 )
             n = len(queries) or 1
-            print(f"{s:16} {nd / n:.3f}    {rc / n:.3f}  {s3 / n:.3f}  {mrr / n:.3f}")
+            scores[s] = {
+                "ndcg10": nd / n,
+                "recall10": rc / n,
+                "success3": s3 / n,
+                "mrr": mrr / n,
+            }
+        if args.json:
+            print(
+                json.dumps(
+                    {"queries": len(queries), "judgments": n_judged, "systems": scores}
+                )
+            )
+            return
+        print(f"queries judged: {len(queries)}  judgments: {n_judged}")
+        print(f"{'system':16} nDCG@10  R@10   S@3    MRR")
+        for s, m in scores.items():
+            print(
+                f"{s:16} {m['ndcg10']:.3f}    {m['recall10']:.3f}  {m['success3']:.3f}  {m['mrr']:.3f}"
+            )
 
 
 if __name__ == "__main__":

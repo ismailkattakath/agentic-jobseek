@@ -19,6 +19,8 @@ file plus a run file in the Drive inbox.
 | `JOBSEEK_NEON_SQL_HOST` | the Neon endpoint host `scripts/match.py` queries over HTTPS; the environment's network secret for that host carries the read-only role's connection string |
 | `JOBSEEK_GITHUB_AUTHOR` | GitHub login whose merged pull requests are evidence |
 | `JOBSEEK_HEARTBEAT_URL` | dead man's switch endpoint pinged at the end of the run (step 10); optional. **SECRET** — it embeds the ping key: never echo, print or quote it |
+| `JOBSEEK_OTLP_ENDPOINT` | Grafana Cloud OTLP base URL (`…/otlp`) for the run-stats push (step 11); optional |
+| `JOBSEEK_OTLP_INSTANCE` | Grafana Cloud instance id; optional. Together with the endpoint it arms step 11. The token is NOT a variable: the environment's network secret injects the `Authorization` header |
 | `FASTEMBED_CACHE_PATH` | the cached nomic-embed-text-v1.5 model (setup script) |
 
 **Variables are not expanded inside connector calls.** Read each value with `echo "$NAME"` in
@@ -60,7 +62,7 @@ three settings is ignored.
    `processed/` subfolder with the Drive connector (intake moves files there). `since` is
    the fire text's value, else the `until_at` of the newest `run-*.json`, else 7 days before
    now. `until_at` is the fire text's `until`, else this run's start time
-   (`date -u +%Y-%m-%dT%H:%M:%SZ`). Name this run's files with `<stamp>` = `until_at` as
+   (`date -u +%Y-%m-%dT%H:%M:%SZ`). Record the start for step 11: `date +%s > run-start.epoch` in your scratchpad. Name this run's files with `<stamp>` = `until_at` as
    `YYYYMMDDTHHMMZ`, so two runs on one day never collide.
 2. **Discover — GitHub.** Page through
    `gh api 'search/issues?q=author:$JOBSEEK_GITHUB_AUTHOR+is:pr+is:merged+merged:<since>..<until_at>&per_page=100&page=N'`
@@ -147,5 +149,41 @@ three settings is ignored.
     `curl -fsS -m 10 --retry 3 "$JOBSEEK_HEARTBEAT_URL/fail"` (errors). A failed ping is
     recorded in the report, never retried in a loop. No ping inside the grace period is the
     operator's signal that the routine did not run (ADR-0007 § 5).
-11. **Report.** End with five lines: window, counts, files written, errors, heartbeat sent
-    (ok / fail / skipped: variable unset).
+11. **Run stats — last, best-effort, after the heartbeat.** Check both `JOBSEEK_OTLP_ENDPOINT` and
+    `JOBSEEK_OTLP_INSTANCE` are set without printing them (`[ -n "$JOBSEEK_OTLP_ENDPOINT" ] &&
+    [ -n "$JOBSEEK_OTLP_INSTANCE" ] && echo set || echo unset`). If either is unset, write one line
+    ("run stats: skipped, OTLP variables unset") and go on. Otherwise build the payload FROM THE RUN
+    FILE you wrote in step 9 (never retype its numbers) and POST it. **You hold no token:** the
+    environment's network secret adds the `Authorization` header to requests for that host, so send
+    none and never look for one.
+    ```
+    python3 - <<'PY' > otlp-stats.json
+    import json, sys, time
+    run = json.load(open("run-<stamp>.json"))  # the step-9 file, by its real name
+    start = int(open("run-start.epoch").read())
+    now = str(time.time_ns())
+    def g(name, unit, points):
+        return {"name": name, "unit": unit, "gauge": {"dataPoints": [
+            {"attributes": [{"key": k, "value": {"stringValue": v}} for k, v in a.items()],
+             "timeUnixNano": now, "asInt": str(n)} for a, n in points]}}
+    p = run["proposals"]
+    metrics = [
+        g("evidence_discover_prs", "{prs}", [({}, run["github_prs"])]),
+        g("evidence_discover_groups", "{groups}", [({}, run["groups"])]),
+        g("evidence_discover_proposals", "{proposals}", [({"action": k}, p[k]) for k in ("enrich", "new", "skip")]),
+        g("evidence_discover_errors", "{errors}", [({}, len(run["errors"]))]),
+        g("evidence_discover_run_duration_seconds", "s", [({}, int(time.time()) - start)]),
+    ]
+    res = {"attributes": [{"key": "service.name", "value": {"stringValue": "evidence-discover"}}]}
+    print(json.dumps({"resourceMetrics": [{"resource": res, "scopeMetrics": [{"scope": {"name": "evidence-discover"}, "metrics": metrics}]}]}))
+    PY
+    curl -sS -m 15 --retry 2 -o /dev/null -w 'run stats: HTTP %{http_code}\n' \
+      -H 'Content-Type: application/json' --data-binary @otlp-stats.json \
+      "$JOBSEEK_OTLP_ENDPOINT/v1/metrics"
+    ```
+    Any failure (non-2xx, timeout, a missing file) is one line in the report, never retried in a
+    loop and never added to `errors` or to the run file: this step observes the run, it is not part
+    of it. Do not print `JOBSEEK_OTLP_ENDPOINT` or the response body. A 401/403 means the network
+    secret is missing or not allowlisted for that host: say so in that line.
+12. **Report.** End with six lines: window, counts, files written, errors, heartbeat sent
+    (ok / fail / skipped: variable unset), run stats (HTTP code / skipped: variables unset).
