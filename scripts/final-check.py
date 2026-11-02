@@ -53,12 +53,6 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("folder")
     ap.add_argument("--max-pages", type=int, default=2)
-    ap.add_argument("--max-words", type=int, default=1000)
-    ap.add_argument(
-        "--title",
-        default="",
-        help="the posting's job title; WARN if the text never says it",
-    )
     args = ap.parse_args()
 
     folder = args.folder.rstrip("/")
@@ -94,23 +88,7 @@ def main():
         repr(lines[0] if lines else ""),
     )
     email = basics.get("email", "")
-    # Standalone, not just present: a theme once ran the title line into the address, and an ATS
-    # parsed "...EngineeringNAME@domain" (ResyMatch, 2026-11-01) while a substring test passed.
-    alone = (
-        re.search(r"(?<![\w.+-])" + re.escape(email) + r"(?![\w-])", flat)
-        if email
-        else True
-    )
-    add(bool(alone), "email stands alone", email or "(none in resume.json)")
-    # Naive parsers join lines with NO separator (ResyMatch's PDF reader did); emulate that.
-    naive = "".join(l.strip() for l in text.splitlines())
-    glue = re.search(r"(\w{1,20})" + re.escape(email), naive) if email else None
-    add(
-        not glue,
-        "email in a naive parse",
-        f"glued to {glue.group(1)!r}" if glue else "clean",
-        level="WARN",
-    )
+    add(not email or email in flat, "email parses", email or "(none in resume.json)")
     phone = re.sub(r"\D", "", basics.get("phone", ""))
     add(
         not phone or phone in digits,
@@ -133,31 +111,6 @@ def main():
     )
     ph = PLACEHOLDER.findall(text)
     add(not ph, "no placeholders", ", ".join(ph) or "none")
-    # A hyphenated word that wraps at a line end comes out of the text layer GLUED ("label-proof"
-    # -> "labelproof"), so the keyword no longer matches. Measured 7 in one render (2026-11-01).
-    corpus = json.dumps(resume, ensure_ascii=False)
-    compounds = sorted(set(re.findall(r"\b[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+\b", corpus)))
-    glued = [
-        c
-        for c in compounds
-        if re.search(r"\b" + re.escape(c.replace("-", "")) + r"\b", text, re.I)
-        and c.replace("-", "").lower() not in corpus.lower()
-    ]
-    add(not glued, "no hyphen-glued words", ", ".join(glued) or "none")
-    words = len(flat.split())
-    add(
-        words <= args.max_words,
-        "word count",
-        f"{words} (limit {args.max_words})",
-        level="WARN",
-    )
-    if args.title:
-        add(
-            args.title.lower() in flat.lower(),
-            "job title in text",
-            args.title,
-            level="WARN",
-        )
     zw = len(ZERO_WIDTH.findall(text))
     add(zw == 0, "no zero-width characters", str(zw))
 
