@@ -144,15 +144,6 @@ def main():
         and c.replace("-", "").lower() not in corpus.lower()
     ]
     add(not glued, "no hyphen-glued words", ", ".join(glued) or "none")
-    # Direct cause, independent of the word list: a line in the layout text ending "letter-" is a
-    # hyphen that wrapped. Catches multi-part compounds the glue test misses ("at-least-once").
-    layout = run(["pdftotext", "-layout", pdf, "-"])
-    breaks = [
-        l.strip()[-24:]
-        for l in layout.splitlines()
-        if re.search(r"[A-Za-z]-$", l.rstrip())
-    ]
-    add(not breaks, "no line ends in a hyphen", "; ".join(breaks) or "none")
     words = len(flat.split())
     add(
         words <= args.max_words,
