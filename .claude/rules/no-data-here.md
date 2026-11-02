@@ -11,7 +11,7 @@ live here. No → data, it goes to its ONE home under `$JOBSEEK_DRIVE_DIR`
 | Résumé content, employers, titles, dates, metrics | the master at `$JOBSEEK_MASTER_URL` (published, one copy) and each role's `resume.json` |
 | A posting, research notes, a cover letter | the role folder |
 | Where an application stands | the role folder's `status.md` |
-| What work actually exists | `evidence/career_docs.jsonl` — the pgvector table is rebuilt from it and holds no fact of its own |
+| What work actually exists | `evidence/{approved,pending,rejected}.jsonl` — the pgvector table `evidence` is synced from them and holds no fact of its own |
 
 This applies to **prompts and examples too**: a skill that illustrates a rule uses fabricated
 values (`Jane Doe`, `Acme Corp`, `"<N> vendors"`), never a real employer, application or

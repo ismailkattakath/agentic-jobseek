@@ -3,7 +3,7 @@
 # The claims ledger: every résumé claim a fact-check has ruled on, with its verdict, the wording
 # to use, and the evidence titles behind it. Source of truth: $JOBSEEK_DRIVE_DIR/evidence/claims.jsonl
 # (one JSON object per line, written by the tailor's final pass — see the tailor-application skill).
-# The resume_claims pgvector table is a CACHE of it, like career_docs (docs/adr/0002):
+# The claims pgvector table is a CACHE of it, like evidence (docs/adr/0002):
 #   rebuild  mirror the table from the JSONL (embeds only new or changed claims)
 #   search   the nearest past rulings for a draft bullet — reuse a vetted wording, or learn it was
 #            already rejected, before the fact-checker has to find it again
@@ -44,31 +44,31 @@ PY
   sql="$(mktemp)"
   trap 'rm -f "$sql"' EXIT
   cat >"$sql" <<'SQL'
-CREATE TABLE IF NOT EXISTS resume_claims (
+CREATE TABLE IF NOT EXISTS claims (
   content_hash text PRIMARY KEY,
   claim        text NOT NULL,
   doc          jsonb NOT NULL,
   embedding    vector(768),
   embed_spec   text
 );
-ALTER TABLE resume_claims ADD COLUMN IF NOT EXISTS embed_spec text;
+ALTER TABLE claims ADD COLUMN IF NOT EXISTS embed_spec text;
 CREATE TEMP TABLE stage (doc jsonb);
 \copy stage (doc) FROM pstdin WITH (FORMAT csv, QUOTE E'\x01', DELIMITER E'\x02')
 BEGIN;
--- Rows made under another recipe are re-embedded by scripts/embed.py fill (see evidence-rebuild.sh).
-UPDATE resume_claims SET embedding = NULL, embed_spec = NULL
+-- Rows made under another recipe are re-embedded by scripts/embed.py fill (see evidence-sync.sh).
+UPDATE claims SET embedding = NULL, embed_spec = NULL
  WHERE embed_spec IS DISTINCT FROM 'nomic-embed-text|search_document: ';
-DELETE FROM resume_claims c WHERE NOT EXISTS (SELECT 1 FROM stage s WHERE s.doc->>'content_hash' = c.content_hash);
-UPDATE resume_claims c SET doc = s.doc FROM stage s
+DELETE FROM claims c WHERE NOT EXISTS (SELECT 1 FROM stage s WHERE s.doc->>'content_hash' = c.content_hash);
+UPDATE claims c SET doc = s.doc FROM stage s
  WHERE s.doc->>'content_hash' = c.content_hash AND c.doc IS DISTINCT FROM s.doc;
-INSERT INTO resume_claims (content_hash, claim, doc, embedding, embed_spec)
+INSERT INTO claims (content_hash, claim, doc, embedding, embed_spec)
 SELECT s.doc->>'content_hash', s.doc->>'claim', s.doc, NULL, NULL FROM stage s
- WHERE NOT EXISTS (SELECT 1 FROM resume_claims c WHERE c.content_hash = s.doc->>'content_hash');
+ WHERE NOT EXISTS (SELECT 1 FROM claims c WHERE c.content_hash = s.doc->>'content_hash');
 COMMIT;
 SQL
-  psql "$JOBSEEK_DB_URI" -X -q -v ON_ERROR_STOP=1 -tA -f "$sql" <"$src"
-  python3 "$here/embed.py" fill resume_claims claim
-  psql "$JOBSEEK_DB_URI" -X -tA -c "SELECT 'resume_claims: ' || count(*) || ' claims, ' || count(embedding) || ' embedded' FROM resume_claims"
+  psql -X -q -v ON_ERROR_STOP=1 -tA -f "$sql" <"$src"
+  python3 "$here/embed.py" fill claims claim
+  psql -X -tA -c "SELECT 'claims: ' || count(*) || ' claims, ' || count(embedding) || ' embedded' FROM claims"
   ;;
 search)
   query="${1:?usage: scripts/claims.sh search \"<text>\" [--k N]}"
@@ -80,9 +80,9 @@ search)
     ;;
   esac
   want=$(grep -c . "$src" 2>/dev/null || echo 0)
-  have=$(psql "$JOBSEEK_DB_URI" -X -tA -c "SELECT count(*) FROM resume_claims" 2>/dev/null || echo missing)
+  have=$(psql -X -tA -c "SELECT count(*) FROM claims" 2>/dev/null || echo missing)
   [ "$have" = "$want" ] || {
-    echo "error: resume_claims has $have rows but the source has $want — run scripts/claims.sh rebuild" >&2
+    echo "error: claims has $have rows but the source has $want — run scripts/claims.sh rebuild" >&2
     exit 1
   }
   # The query is embedded on this Mac (scripts/embed.py); the cache in Neon cannot reach Ollama.
@@ -90,8 +90,8 @@ search)
   printf '%s\n' "WITH q AS MATERIALIZED (SELECT :'qv'::vector AS v)
   SELECT doc->>'verdict', round((1 - (embedding <=> q.v))::numeric, 2),
        doc->>'claim', coalesce(doc->>'use', ''), coalesce(doc->>'note', '')
-  FROM resume_claims, q ORDER BY embedding <=> q.v LIMIT :k;" |
-    psql "$JOBSEEK_DB_URI" -X -q -v ON_ERROR_STOP=1 -tA -F $'\t' -v qv="$qv" -v k="$k"
+  FROM claims, q ORDER BY embedding <=> q.v LIMIT :k;" |
+    psql -X -q -v ON_ERROR_STOP=1 -tA -F $'\t' -v qv="$qv" -v k="$k"
   ;;
 *)
   sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'

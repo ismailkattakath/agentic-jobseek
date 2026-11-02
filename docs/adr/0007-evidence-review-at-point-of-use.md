@@ -54,7 +54,14 @@ on every enrichment — the only reason `evidence-apply.py` remaps qrels.
    - *reject* (either kind) → appended to `rejected.jsonl`; an approved base stays untouched.
 6. **The routine dedupes against all three states.** Its match sees `approved`, `pending` and
    `rejected`, so new work on a pending item becomes an enrichment of that item, and rejected
-   work is not proposed again.
+   work is not proposed again. **`rejected.jsonl` is an append-only history keyed by
+   `content_hash`**: rejecting never replaces, so one `doc_id` can hold several rejected versions.
+   Intake enforces "never asked again" even when the routine proposes it anyway: it drops any
+   proposed sentence already present in **any** rejected version of the same `doc_id`, and a `new`
+   proposal whose content equals a rejected document's (both compared with whitespace collapsed
+   and case folded). An enrichment left with no sentences is skipped ("all sentences previously
+   rejected"); the intake report lists what was dropped, and a surviving proposal records it in
+   `metadata.proposal.dropped_as_rejected`.
 7. **Monitoring foundation** (§ 5): a dead man's switch for the routine, a SessionStart digest
    for the backlog, drift detection in every search. OpenTelemetry is a later proof, not a
    dependency.
@@ -86,7 +93,8 @@ moves `metadata.proposal` into `metadata.enrichments[]` (the audit trail), then 
 ## 4. Invariant — the self-healing rule
 
 > **Each `content_hash` lives in exactly one state file, and each `doc_id` appears at most once
-> per file.**
+> per file in `approved` and `pending`.** `rejected` is the exception: it is history, so it may
+> hold several versions of one `doc_id` (each with its own `content_hash`).
 
 `evidence-sync.sh` checks it on every run and repairs what a crash can leave behind: the same
 version in two files → keep the most-decided copy (`approved` > `rejected` > `pending`) and
@@ -174,3 +182,53 @@ Kept: `qrels`/`queries` (TREC), `resume.json` (JSON Resume), `FASTEMBED_CACHE_PA
    heartbeat host to the allowlist; push the repository last, so the Monday run never sees
    half a migration.
 4. nix-config: the global `CLAUDE.md` line naming `career_docs`.
+
+## 10. Build notes (2026-11-02)
+
+Deviations and follow-ups the builders reported.
+
+- **Parity:** hybrid nDCG@10 measured **0.712** against `public.evidence` (vector 0.562, bm25
+  0.584, 55 queries, 846 judgments), not the 0.722 § 9.2 expected. Row counts, hashes, `doc_id`s
+  and vectors match `career_docs` exactly (515, 0 differences); the baseline systems now filter to
+  approved rows. **The gap predates the migration:** the pre-migration stack (`career_docs`, the
+  `content_hash`-keyed qrels backup `qrels.migrate-0007-*.jsonl`, and HEAD's `evidence-search.sql`)
+  also scores hybrid nDCG@10 **0.712** today (verification pass, 2026-11-02), so 0.722 is a stale
+  figure, not a migration defect. nDCG@10 is identical; MRR and R@10 differ in the third decimal
+  between the two tables, likely rank tie-breaking (vector matches to every decimal; the bm25 and
+  fusion ties differ). Not measured further.
+- **Text drift found by the seed:** one document (the "website" portfolio doc) differed:
+  `period` was `multi-year (610 commits)` in `career_docs`, `multi-year` in the file. The file
+  is newer and wins. 44 timestamps differ (40 backfilled, 4 stamped `now()` by the old rebuild).
+- **Seed is a flag:** `evidence-sync.sh --seed-from career_docs` copies vectors on matching
+  `content_hash`; no separate copy step.
+- **`evidence_sync`** holds each file's sha256; `evidence.sh` self-heals on drift (tested live).
+- **Intake details:** a run file without `proposal_sha256` is accepted with a warning (as
+  `evidence-apply.py` did); a mismatch moves both files to `inbox/superseded/` with a reason file.
+  The old `target_hash` is still mapped through current hashes and `enrichments[].previous_hash`,
+  so the cloud routine works until it sends `target_doc_id`. Merged pending enrichments record
+  `metadata.proposal.merged[]` and `added_sentences`.
+- **`evidence-review.py`:** pass the full `doc_id`; UUIDv7 prefixes are timestamp-based and
+  collide (three unrelated documents shared 8 characters). `content_hash` prefixes of 8+ are fine.
+  `--drop` and `--edit-content` write a new pending version first. Rejecting an enrichment leaves
+  two Neon rows with one `doc_id` (approved base, rejected enrichment), as § 2.3 allows.
+- **Python 3.14** is required for `uuid.uuid7()`; intake raises a clear error otherwise.
+- **Credentials:** `embed.py pgenv` now exports libpq `PG*` variables so no `psql` argv carries
+  the URI or password (173 calls checked, 0 leaks). `evidence-sync.sh`'s last four
+  `psql "$JOBSEEK_DB_URI"` calls were removed in the verification pass; a `ps` sampler then saw
+  156 psql processes and the password in none of their argv.
+- **`claims`:** renamed live; `resume_claims_pkey` renamed to `claims_pkey`; `claims.sh` updated.
+- **Tailor and monitoring:** `job-evidence.sh` passes `--with-pending` (opt out with
+  `--approved-only`); `evidence-digest.sh` is wired as a SessionStart hook (about 46 ms).
+- **Cloud side still to do (§ 9.3):** rename the environment variables, routine and environment;
+  update the stored prompt; add the heartbeat host to the allowlist; create the heartbeat check
+  and set `JOBSEEK_HEARTBEAT_URL`; switch to `target_doc_id` and `neighbours[].doc_id`. Until then
+  `match.py` still falls back to `NEON_SQL_HOST`.
+- **Drive:** `evidence/inbox/applied/` keeps its old name until the folder is renamed; the digest
+  reads both.
+- **Open:** `career_docs` is intact and is dropped only after the operator confirms. nix-config's
+  global `CLAUDE.md` line naming `career_docs` (§ 9.4) is not yet changed. Formatting (`shfmt`,
+  `ruff`) was not run by any builder.
+- **Rejected is history (verification defect, 2026-11-02):** `rejected.jsonl` first kept one row per
+  `doc_id`, so rejecting a second enrichment overwrote the first rejection and intake re-admitted
+  its sentences. Now rejecting appends, the invariant and `_check_rows` exempt `rejected` from
+  per-file `doc_id` uniqueness (still unique per `content_hash`), and intake applies § 2.6.

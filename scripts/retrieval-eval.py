@@ -4,12 +4,13 @@
 Measure evidence retrieval against a graded test set, so a retrieval change (prefixes, hybrid,
 reranking) is decided by a number. Data lives in $JOBSEEK_DRIVE_DIR/evidence/eval/:
   queries.jsonl  {"qid", "query", "source"}             — what a tailor actually asks
-  qrels.jsonl    {"qid", "content_hash", "grade": 0|1|2} — judged relevance (2 = proves it,
+  qrels.jsonl    {"qid", "doc_id", "grade": 0|1|2}      — judged relevance (2 = proves it,
                                                           1 = related, 0 = not relevant)
 Method: TREC-style pooling — each system's top-k is unioned per query and only the pool is
-judged; an unjudged document counts as grade 0.
+judged; an unjudged document counts as grade 0. Judgments key on doc_id (docs/adr/0007), so an
+enriched document keeps its grades when its content_hash changes.
 
-Systems run against career_docs itself. "hybrid" is scripts/sql/evidence-search.sql with
+Systems run against the Neon table `evidence`. "hybrid" is scripts/sql/evidence-search.sql with
 evidence.sh's defaults — the very query tailoring uses, not a re-implementation (until
 2026-11-02 this script fused its own copy, which scored 0.703 while production scored 0.727;
 docs/adr/0006).
@@ -26,7 +27,7 @@ import os
 import subprocess
 import sys
 
-from embed import db_uri, embed, literal
+from embed import db_env, embed, literal
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(
@@ -37,36 +38,38 @@ DATA = os.path.join(
 TYPES = "{contribution,hard_problem,skill_evidence,architecture_decision,unique_strength,subsystem,cross_repo_theme}"
 TSQ = "to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', :'q')), ' | '))"
 SYSTEMS = {
-    "vector": "SELECT content_hash FROM public.career_docs ORDER BY embedding <=> :'qv'::vector LIMIT :k;",
-    "bm25": f"SELECT content_hash FROM public.career_docs WHERE tsv @@ {TSQ} ORDER BY ts_rank_cd(tsv, {TSQ}) DESC LIMIT :k;",
+    "vector": "SELECT doc_id FROM public.evidence WHERE status = 'approved' ORDER BY embedding <=> :'qv'::vector LIMIT :k;",
+    "bm25": f"SELECT doc_id FROM public.evidence WHERE status = 'approved' AND tsv @@ {TSQ} ORDER BY ts_rank_cd(tsv, {TSQ}) DESC LIMIT :k;",
     "hybrid": open(
         os.path.join(HERE, "sql", "evidence-search.sql"), encoding="utf-8"
     ).read(),
 }
 
 
-def sql(uri, text, **v):
-    args = ["psql", uri, "-X", "-q", "-tA", "-F", "\t", "-v", "ON_ERROR_STOP=1"]
+def sql(env, text, **v):
+    # The connection travels in env (PG*), never in argv: a psql argument is readable through `ps`.
+    args = ["psql", "-X", "-q", "-tA", "-F", "\t", "-v", "ON_ERROR_STOP=1"]
     for k, val in v.items():
         args += ["-v", f"{k}={val}"]
-    out = subprocess.run(args, input=text, capture_output=True, text=True)
+    out = subprocess.run(args, input=text, capture_output=True, text=True, env=env)
     if out.returncode:
         sys.exit(out.stderr)
     return [line.split("\t") for line in out.stdout.splitlines() if line]
 
 
-def run(uri, system, query, qv, k):
+def run(env, system, query, qv, k):
     return [
         r[0]
         for r in sql(
-            uri,
+            env,
             SYSTEMS[system],
             q=query,
             qv=qv,
             k=k,
             scope="",
             types=TYPES,
-            cols="d.content_hash",
+            statuses="{approved}",  # the baseline is the approved corpus (pending rows would move it)
+            cols="d.doc_id",
         )
     ]
 
@@ -81,22 +84,21 @@ def main():
     ap.add_argument("cmd", choices=["pool", "score"])
     ap.add_argument("--k", type=int, default=5)
     args = ap.parse_args()
-    uri = db_uri()
+    env = db_env()
     systems = list(SYSTEMS)
     vectors = {}
 
     def ranked(s, query, k):
         if query not in vectors:  # one embedding per query, shared by every system
             vectors[query] = literal(embed("search_query: " + query))
-        return run(uri, s, query, vectors[query], k)
+        return run(env, s, query, vectors[query], k)
 
     if args.cmd == "pool":
-        src = os.path.join(os.path.dirname(DATA), "career_docs.jsonl")
+        src = os.path.join(os.path.dirname(DATA), "approved.jsonl")
         with open(src, encoding="utf-8") as f:
             docs = {
-                d["content_hash"]: (d["title"], d["content"])
-                for d in map(json.loads, f)
-                if d
+                d["doc_id"]: (d["title"], d["content"])
+                for d in (json.loads(line) for line in f if line.strip())
             }
         for q in load("queries.jsonl"):
             seen = []
@@ -108,7 +110,7 @@ def main():
                         {
                             "qid": q["qid"],
                             "query": q["query"],
-                            "content_hash": h,
+                            "doc_id": h,
                             "title": docs[h][0],
                             "content": docs[h][1],
                         },
@@ -118,7 +120,7 @@ def main():
     else:
         qrels = {}
         for r in load("qrels.jsonl"):
-            qrels.setdefault(r["qid"], {})[r["content_hash"]] = r["grade"]
+            qrels.setdefault(r["qid"], {})[r["doc_id"]] = r["grade"]
         queries = [q for q in load("queries.jsonl") if q["qid"] in qrels]
         print(
             f"queries judged: {len(queries)}  judgments: {sum(len(v) for v in qrels.values())}"

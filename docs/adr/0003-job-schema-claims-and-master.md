@@ -1,6 +1,7 @@
 # ADR-0003 — Job schema, claims ledger, one master, and the theme
 
 **Status:** accepted, 2026-11-01. Evaluated four proposals; three adopted, one rejected.
+**Superseded in part by ADR-0007:** the claims table `resume_claims` is now `claims`; names below are historical.
 
 ## 1. Postings become `job.json` in the JSON Resume job-description schema — ADOPTED
 

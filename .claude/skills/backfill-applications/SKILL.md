@@ -20,7 +20,7 @@ argument-hint: "[company/role ...] [--scope enterprise|personal-project|oss-cont
 ## Preconditions — check once, STOP on failure
 
 1. `scripts/evidence.sh "smoke test" --k 1` returns a row. It also proves the cache matches
-   its Drive source. If not, **stop and say how to fix it** — never fall back to the master
+   its Drive source (drift triggers a sync first). If not, **stop and say how to fix it** — never fall back to the master
    résumé (`rules/evidence-gate.md`).
 2. `jsonresume validate --url "$JOBSEEK_MASTER_URL"` passes.
 

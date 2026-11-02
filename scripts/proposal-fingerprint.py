@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """proposal-fingerprint.py <proposal.jsonl> — print the proposal's content fingerprint.
 
-The evidence-refresh routine records this in its run file; scripts/evidence-apply.py recomputes it
-and refuses a proposal that differs (docs/adr/0006). It hashes the JSON CONTENT — each line parsed
+The evidence-discover routine records this in its run file; scripts/evidence-store.py (intake, run by
+scripts/evidence-sync.sh) recomputes it and refuses a proposal that differs (docs/adr/0006 § 4d,
+docs/adr/0007 § 3). It hashes the JSON CONTENT — each line parsed
 and re-serialised with sorted keys — so whitespace or a trailing newline added by the Drive
 connector does not matter, while any changed, dropped or added value does.
 """

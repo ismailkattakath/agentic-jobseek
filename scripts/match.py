@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """match.py [--k N] < groups.tsv — nearest evidence documents for each group, as JSON lines.
 
-The evidence-refresh routine's Match step (routines/evidence-refresh.md, docs/adr/0006). Input:
+The evidence-discover routine's Match step (routines/, docs/adr/0006, docs/adr/0007 § 2.6). Input:
 one `key<TAB>sentence` per line. Every sentence is embedded in one batch with the cloud
 environment's cached fastembed nomic-embed-text-v1.5 ('search_query: ' prefix — the same vectors
 as the local Ollama), ranked by the shared hybrid search (scripts/sql/evidence-search.sql), and
-printed as {"key", "sentence", "neighbours": [{"content_hash", "title", "repo", "period",
-"cosine"}]}.
+printed as {"key", "sentence", "neighbours": [{"doc_id", "content_hash", "title", "cosine",
+"status", "repo", "period"}]}. The search covers all three states (approved, pending, rejected), so
+new work on a pending item becomes an enrichment of it and rejected work is not proposed again;
+neighbours are VERSIONS, so a pending enrichment and its approved base can share a doc_id.
 
 Vectors never pass through the model: the query goes straight to Neon's HTTPS SQL endpoint
-(https://$NEON_SQL_HOST/sql) as the read-only `evidence_reader` role. In the cloud the
+(https://$JOBSEEK_NEON_SQL_HOST/sql) as the read-only `evidence_reader` role. In the cloud the
 environment's network secret adds that role's `Neon-Connection-String` header; locally, set
-NEON_CONNECTION_STRING (e.g. `secret exec NEON_CONNECTION_STRING=<item> -- …`).
+NEON_CONNECTION_STRING (e.g. `secret exec NEON_CONNECTION_STRING=<item> -- …`). The host variable
+was NEON_SQL_HOST until ADR-0007 § 6; that name is still read as a fallback until the cloud
+environment is renamed.
 """
 
 import argparse
@@ -31,9 +35,10 @@ sql_render = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sql_render)
 
 TYPES = "{contribution,hard_problem,skill_evidence,architecture_decision,unique_strength,subsystem,cross_repo_theme}"
+STATUSES = "{approved,pending,rejected}"
 COLS = (
-    "d.content_hash, d.title, d.repo, d.period, "
-    "round((1 - (d.embedding <=> q.v))::numeric, 4) AS cosine"
+    "d.doc_id, d.content_hash, d.title, "
+    "round((1 - (d.embedding <=> q.v))::numeric, 4) AS cosine, d.status, d.repo, d.period"
 )
 
 
@@ -54,7 +59,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--k", type=int, default=3)
     a = ap.parse_args()
-    host = os.environ.get("NEON_SQL_HOST") or sys.exit("error: set NEON_SQL_HOST")
+    host = (
+        os.environ.get("JOBSEEK_NEON_SQL_HOST")
+        or os.environ.get("NEON_SQL_HOST")  # pre-ADR-0007 name, until the cloud env is renamed
+        or sys.exit("error: set JOBSEEK_NEON_SQL_HOST")
+    )
     groups = [line.rstrip("\n").split("\t", 1) for line in sys.stdin if line.strip()]
     if any(len(g) != 2 for g in groups):
         sys.exit("error: each input line must be key<TAB>sentence")
@@ -73,6 +82,7 @@ def main():
                 "q": sentence,
                 "scope": "",
                 "types": TYPES,
+                "statuses": STATUSES,
                 "k": str(a.k),
                 "cols": COLS,
             },

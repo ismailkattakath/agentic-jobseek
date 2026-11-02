@@ -21,5 +21,19 @@
       "Bash(secret reveal *)",
       "mcp__claude_ai_Google_Drive__share_file"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/scripts/evidence-digest.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }

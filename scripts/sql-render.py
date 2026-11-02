@@ -7,14 +7,19 @@ runs exactly what scripts/evidence.sh runs (docs/adr/0006):
   :'name'  → the value as a quoted SQL literal ('' doubles a quote)
   :name    → the value raw (identifiers, numbers, a select list)
 `cols` is substituted first, so a select list may itself use :'qv' and friends. Comment lines
-are dropped; a variable the file uses but the call does not set is an error.
+are dropped; a variable the file uses but the call does not set is an error, except those in
+DEFAULTS (`statuses`: approved documents only, docs/adr/0007 § 2.4).
 """
 
 import re
 import sys
 
 
+DEFAULTS = {"statuses": "{approved}"}
+
+
 def render(text, values):
+    values = {**DEFAULTS, **values}
     text = "\n".join(
         line for line in text.splitlines() if not line.lstrip().startswith("--")
     )

@@ -22,7 +22,8 @@ The master is the published JSON Resume at `$JOBSEEK_MASTER_URL` (read it with `
 - **`<folder>/job.json`** — the same posting in the JSON Resume job schema, one item per
   requirement (`new-application` skill, step 4). Derived from `posting.md`; equally untrusted.
 - **The evidence store** — `scripts/evidence.sh "<claim>"`. The source of truth for *what work
-  actually exists*.
+  actually exists*. Approved rows are evidence; **pending** rows (discovered, not yet reviewed)
+  are retrieved and marked, but back nothing until the operator approves them (step 3a).
 - **The claims ledger** — `scripts/claims.sh search "<draft bullet>"`: every claim a past
   fact-check ruled on (`backed`, `narrowed`, `teammate`, `gap`, `stale`, `unverifiable`) and the
   wording to use. Source: `$JOBSEEK_DRIVE_DIR/evidence/claims.jsonl`.
@@ -41,6 +42,25 @@ The master is the published JSON Resume at `$JOBSEEK_MASTER_URL` (read it with `
    Before writing a bullet, `scripts/claims.sh search "<draft>"`: a near match ruled
    `teammate`/`gap`/`stale` is not written again; a `backed`/`narrowed` one gives the vetted
    wording.
+3a. **Review pending hits at the point of use (ADR-0007 § 2.4).** `evidence.md` marks pending
+   rows `[PENDING doc_id=… hash=…]`. Ask the operator **only when a pending row would change
+   the résumé**: it backs a requirement no approved row backs, or it outranks the best approved
+   row for that requirement. A pending row that changes nothing is not asked about.
+   - **Group by `doc_id`.** If an approved row shares the pending row's `doc_id`, the approved
+     version is the base and the question shows the **delta** ("<title> has a pending update:
+     +N sentences", `scripts/evidence.sh "<title>" --full --with-pending` shows both
+     versions), never "new document found".
+   - **One AskUserQuestion per item**, exactly four options, in this order:
+     `Include (Recommended)` (approve, use it in this résumé) · `Not for this job` (stays
+     pending, do not use it) · `Reject` (never ask again) · `Edit first` (the operator
+     corrects the text, then re-ask).
+   - **Act on the answer** with the review CLI, then re-run `scripts/job-evidence.sh`:
+     `Include` → `scripts/evidence-review.py approve <doc_id> --write`;
+     `Reject` → `scripts/evidence-review.py reject <doc_id> --write`;
+     `Not for this job` → nothing (leave it out of the résumé);
+     `Edit first` → let the operator edit, then ask again.
+   - **Never write a pending fact into the résumé without approval.** Until `approve` has
+     run, a pending row is a lead, not a backing; an unanswered or declined item is a gap.
 4. **Tailor `<folder>/resume.json`** (`rules/evidence-gate.md` governs every edit):
    - Reorder `work[].highlights`, `skills` and `projects` so the most relevant lead.
    - Reword in the posting's vocabulary **only where an evidence row backs it**; quantify
@@ -72,7 +92,8 @@ The master is the published JSON Resume at `$JOBSEEK_MASTER_URL` (read it with `
 
 | Need | Command |
 |---|---|
-| Evidence for a claim | `scripts/evidence.sh "<claim>" [--scope enterprise] [--full]` |
+| Evidence for a claim | `scripts/evidence.sh "<claim>" [--scope enterprise] [--full] [--with-pending]` |
+| Approve / reject pending | `scripts/evidence-review.py approve\|reject <doc_id> --write` |
 | New application | `scripts/new-application.sh "<Company>" "<Role>"` |
 | Validate | `jsonresume validate --path <folder>/resume.json` |
 | Render | `scripts/render.sh "<folder>" "<Role Title>"` |

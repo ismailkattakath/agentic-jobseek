@@ -2,6 +2,7 @@
 
 **Status:** accepted, 2026-11-02. Decided on a cloud proof run and an embedding-parity test
 (§ 4); not yet built. Both proof runs passed (§ 4, § 4b). Next: a one-week dry run (§ 6).
+**Superseded in part by ADR-0007:** § 1.3 (the separate weekly review) and the whole-file `evidence-apply.py` are replaced by review at the point of use (`evidence-review.py`); `career_docs` → `evidence`, `evidence-rebuild` → `evidence-sync`, `evidence-refresh` → `evidence-discover`, `inbox/applied/` → `inbox/processed/`, `target_hash` → `target_doc_id`, and the env vars gain the `JOBSEEK_` prefix. Names below are historical.
 
 ## 1. Decision
 

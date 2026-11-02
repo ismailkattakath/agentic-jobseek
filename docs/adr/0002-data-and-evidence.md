@@ -2,6 +2,7 @@
 
 **Status:** accepted, 2026-11-01. Superseded in part by ADR-0006: the cache moves to Neon and the
 in-database `embed()` goes away; the JSONL stays the source.
+**Also superseded in part by ADR-0007:** `career_docs.jsonl` is now `evidence/{approved,pending,rejected}.jsonl`, the table is `evidence`, `evidence-rebuild.sh` is `evidence-sync.sh`, and `resume_claims` is `claims`. Names below are historical.
 
 ## Decision
 

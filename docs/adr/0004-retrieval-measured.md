@@ -4,6 +4,7 @@
 not on a recommendation. **Corrected 2026-11-02 (ADR-0006 § 4c):** the hybrid row below scored
 `retrieval-eval.py`'s own re-implementation; the query `evidence.sh` runs (doc-type filter, fusion
 in SQL) scores 0.727 on the enlarged judgment set, and the script now scores that query.
+**Superseded in part by ADR-0007:** the eval is keyed on `doc_id` and reads `public.evidence` (was `career_docs`); the baseline filters to approved rows. Names below are historical.
 
 ## 1. The test set — `scripts/retrieval-eval.py`
 

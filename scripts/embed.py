@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""embed.py query "<text>" | fill <table> <text-column> [--vec COL] [--prefix P] [--no-spec]
+"""embed.py query "<text>" | fill <table> <text-column> [--vec COL] [--prefix P] [--no-spec] | pgenv
 
 nomic-embed-text vectors, computed on the client (docs/adr/0006). The cache moved to Neon, which
 cannot reach the local Ollama, so no script embeds in SQL any more.
@@ -8,11 +8,15 @@ cannot reach the local Ollama, so no script embeds in SQL any more.
   fill    embed every row of <table> whose <vec> column is NULL (default: embedding, prefix
           'search_document: ', recording the recipe in embed_spec) and write the vectors back.
           --no-spec skips embed_spec for tables without one (eval_docs).
+  pgenv   print the connection as `export PG*=…` lines for `eval` (scripts/db-env.sh does this),
+          so no psql call ever carries the connection string — or its password — in argv.
 
 Calls Ollama exactly as the retired in-database embed() did — POST /api/embeddings
 {"model": "nomic-embed-text", "prompt": ...} — so new vectors match the stored ones. Parity with
 the cloud run's fastembed nomic-embed-text-v1.5 was measured 2026-11-02 at cosine
-0.999999–1.000001 against these vectors. The connection string comes from JOBSEEK_DB_URI.
+0.999999–1.000001 against these vectors. The connection string comes from JOBSEEK_DB_URI and
+reaches psql only as PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE/… in its environment: a process
+argument is world-readable through `ps` (measured 2026-11-02), a process environment is not.
 """
 
 import argparse
@@ -20,10 +24,12 @@ import csv
 import io
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
 import urllib.request
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 MODEL = "nomic-embed-text"
 SPEC = f"{MODEL}|search_document: "
@@ -32,11 +38,50 @@ if "://" not in OLLAMA:  # Ollama's own convention is a bare host:port
     OLLAMA = "http://" + OLLAMA
 
 
-def db_uri():
-    """JOBSEEK_DB_URI, or re-run this script under `secret exec` so the password stays out of the shell."""
+# URI query parameter -> libpq environment variable (libpq docs, § Environment Variables).
+PG_PARAMS = {
+    "sslmode": "PGSSLMODE",
+    "channel_binding": "PGCHANNELBINDING",
+    "connect_timeout": "PGCONNECT_TIMEOUT",
+    "application_name": "PGAPPNAME",
+    "options": "PGOPTIONS",
+}
+
+
+def pg_env(uri):
+    """A postgres:// URI as the libpq environment variables that carry the same connection.
+
+    Direct, not through Neon's pooler (the stored URI's host ends in "-pooler"): see db-env.sh.
+    A query parameter this table does not know is an error naming the parameter, never its value.
+    """
+    u = urlsplit(uri.replace("-pooler.", ".", 1))
+    if u.scheme not in ("postgres", "postgresql") or not u.hostname:
+        sys.exit("error: the connection string is not a postgres:// URI")
+    env = {
+        "PGHOST": u.hostname,
+        "PGPORT": str(u.port or 5432),
+        "PGDATABASE": unquote(u.path.lstrip("/")) or "postgres",
+        "PGSSLMODE": "require",
+    }
+    if u.username:
+        env["PGUSER"] = unquote(u.username)
+    if u.password:
+        env["PGPASSWORD"] = unquote(u.password)
+    for k, v in parse_qsl(u.query):
+        if k not in PG_PARAMS:
+            sys.exit(f"error: connection string parameter {k!r} has no libpq environment variable")
+        env[PG_PARAMS[k]] = v
+    return env
+
+
+def db_env():
+    """os.environ plus the PG* connection variables, for a psql subprocess.
+
+    Uses JOBSEEK_DB_URI, or re-runs this script under `secret exec` so the password stays out of the shell.
+    """
     uri = os.environ.get("JOBSEEK_DB_URI")
-    if uri:  # direct, not through Neon's pooler — see scripts/db-env.sh
-        return uri.replace("-pooler.", ".", 1)
+    if uri:
+        return {**os.environ, **pg_env(uri)}
     item = os.environ.get("JOBSEEK_DB_SECRET") or sys.exit(
         "error: set JOBSEEK_DB_SECRET (Keychain item) or JOBSEEK_DB_URI"
     )
@@ -63,13 +108,14 @@ def literal(vec):
     return "[" + ",".join(repr(x) for x in vec) + "]"
 
 
-def psql(uri, script, stdin=""):
+def psql(env, script, stdin=""):
     """Run a psql script from a file, so `\\copy ... pstdin` can read `stdin`."""
     with tempfile.NamedTemporaryFile("w", suffix=".sql", encoding="utf-8") as f:
         f.write(script)
         f.flush()
         out = subprocess.run(
-            ["psql", uri, "-X", "-q", "-v", "ON_ERROR_STOP=1", "-1", "-f", f.name],
+            ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-1", "-f", f.name],
+            env=env,
             input=stdin,
             capture_output=True,
             text=True,
@@ -80,7 +126,7 @@ def psql(uri, script, stdin=""):
 
 
 def fill(table, col, vec, prefix, spec):
-    uri = db_uri()
+    env = db_env()
     for name in (table, col, vec):
         if not name.replace("_", "").isalnum():
             sys.exit(f"error: bad identifier {name!r}")
@@ -88,7 +134,7 @@ def fill(table, col, vec, prefix, spec):
         csv.reader(
             io.StringIO(
                 psql(
-                    uri,
+                    env,
                     f"\\copy (SELECT content_hash, {col} FROM {table} WHERE {vec} IS NULL) TO STDOUT WITH (FORMAT csv)\n",
                 )
             )
@@ -105,7 +151,7 @@ def fill(table, col, vec, prefix, spec):
             print(f"  embedded {i}/{len(rows)}", file=sys.stderr)
     set_spec = f", embed_spec = '{SPEC}'" if spec else ""
     psql(
-        uri,
+        env,
         "CREATE TEMP TABLE v (h text, e text);\n"
         "\\copy v FROM pstdin WITH (FORMAT csv)\n"
         f"UPDATE {table} t SET {vec} = v.e::vector{set_spec} FROM v WHERE t.content_hash = v.h;\n",
@@ -125,8 +171,13 @@ def main():
     f.add_argument("--vec", default="embedding")
     f.add_argument("--prefix", default="search_document: ")
     f.add_argument("--no-spec", action="store_true")
+    sub.add_parser("pgenv")
     a = ap.parse_args()
-    if a.cmd == "query":
+    if a.cmd == "pgenv":
+        uri = os.environ.get("JOBSEEK_DB_URI") or sys.exit("error: JOBSEEK_DB_URI is not set")
+        for k, v in pg_env(uri).items():
+            print(f"export {k}={shlex.quote(v)}")
+    elif a.cmd == "query":
         print(literal(embed("search_query: " + a.text)))
     else:
         fill(a.table, a.column, a.vec, a.prefix, not a.no_spec)

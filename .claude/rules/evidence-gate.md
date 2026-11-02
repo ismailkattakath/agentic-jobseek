@@ -11,9 +11,11 @@ Content optimises the **presentation** of real experience. It never invents expe
   an employer's line.
 - **Never fabricate** an employer, title, date, degree, certification, metric or skill. Refuse
   even when asked to "just make it fit".
+- **A `pending` row is not evidence.** Retrieval may show it (marked PENDING), but nothing
+  it alone backs enters a résumé until the operator approves it (ADR-0007).
 - **Scope:** `--scope enterprise` for a tight principal/staff narrative; all tiers for
   founding or applied-AI roles that reward the personal + OSS range.
 
 **If the store is unreachable, STOP.** Never fall back silently to the master résumé alone:
 an ungrounded tailor is exactly the failure this gate exists to prevent. `evidence.sh` itself
-refuses to answer from a cache whose row count no longer matches its Drive source.
+re-syncs a cache whose file hashes no longer match its Drive source (ADR-0007 § 4), and refuses to answer if that sync fails.

@@ -31,7 +31,8 @@ Give each agent the folder path. Each returns findings only; none edits files.
 > You are an adversarial fact-checker for the tailored résumé at
 > `<folder>/resume.json`. Compare every bullet, summary sentence and skill
 > against the master (`curl -fsS "$JOBSEEK_MASTER_URL"`) and `$JOBSEEK_DRIVE_DIR/APPLICATION-FACTS.md`, and corroborate
-> anything sharpened with `scripts/evidence.sh "<claim>"`. Flag: a number,
+> anything sharpened with `scripts/evidence.sh "<claim>"` (approved rows only: a
+> claim backed solely by a `pending` row is unbacked until the operator approves it). Flag: a number,
 > scope, tool, title or date not in the sources; two separate facts fused into
 > one claim; personal/OSS evidence used as an enterprise metric; a narrower or
 > stronger word than the source ("isolation" for "security"). Default to

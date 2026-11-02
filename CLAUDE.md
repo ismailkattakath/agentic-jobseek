@@ -20,8 +20,11 @@ and why the RAG is a cache: `docs/adr/0002-data-and-evidence.md`. The job schema
 ledger, the single master and the theme trial: `docs/adr/0003-job-schema-claims-and-master.md`.
 How retrieval is measured and why it is hybrid: `docs/adr/0004-retrieval-measured.md`.
 The résumé PDF theme — Typst, single column, Material 3, a gated text layer: `docs/adr/0005-own-theme.md`.
-The weekly evidence refresh — a cloud routine proposes, a local step applies, the cache on Neon:
-`docs/adr/0006-periodic-evidence-refresh.md`; the routine's procedure: `routines/evidence-refresh.md`.
+The weekly evidence discovery — a cloud routine proposes, the cache on Neon:
+`docs/adr/0006-periodic-evidence-refresh.md`; the routine's procedure: `routines/evidence-discover.md`
+(was `evidence-refresh`). Evidence review at the point of use — one schema, three state files,
+one sync, `doc_id` identity: `docs/adr/0007-evidence-review-at-point-of-use.md` (supersedes
+ADR-0006 § 1.3 and its whole-file apply).
 
 ## Architecture — four stages, one gate
 
@@ -52,11 +55,12 @@ unset.
 | Priority queue | `APPLY-LIST.md` |
 | One application: `posting.md` (source), `job.json` (job schema), `evidence.md`, tailored résumé, PDF, cover letter, research, status | `applications/<company>/<role>/` |
 | Raw discovery output and saved searches | `discovery/` |
-| **Career evidence — the source of truth** | `evidence/career_docs.jsonl` |
+| **Career evidence — the source of truth** | `evidence/approved.jsonl` (+ `pending.jsonl`, `rejected.jsonl`; one schema, `schemas/evidence-doc.schema.json`) |
 | **Claims ledger** — every fact-check ruling and the wording to use | `evidence/claims.jsonl` |
 
-The `career_docs` and `resume_claims` pgvector tables are **caches** of those two files, rebuilt by
-`scripts/evidence-rebuild.sh` and `scripts/claims.sh rebuild`, and they live in Neon (docs/adr/0006).
+The `evidence` (all three states, with a `status` column) and `claims` pgvector tables are **caches**
+of those files, synced by `scripts/evidence-sync.sh` and `scripts/claims.sh rebuild`, and they live in
+Neon (docs/adr/0006, 0007). `evidence.sh` compares the files' sha256 with `evidence_sync` and syncs on drift.
 `JOBSEEK_DB_SECRET` names the Keychain item holding the connection string; `scripts/db-env.sh` runs
 each script under `secret exec`, so the password is never exported. Embeddings are computed on the
 client — `scripts/embed.py` (Ollama) here, fastembed in the cloud routine; hybrid search is the one
@@ -66,7 +70,7 @@ file `scripts/sql/evidence-search.sql`.
 
 | Path | Owns |
 |---|---|
-| `scripts/` | The tools: scaffold, render, gate, posting extractor, evidence query and rebuild |
+| `scripts/` | The tools: scaffold, render, gate, posting extractor, evidence query and sync |
 | `templates/application/` | The prototype every role folder is copied from |
 | `theme/` | The résumé PDF theme (Typst): `lib.typ` tokens + sections, `resume.typ` layout, vendored fonts (OFL), the public sample used by the gate |
 | `.claude/rules/` | Policy, one file per rule — read the directory |
@@ -86,7 +90,8 @@ scripts/job-validate.py "<folder>/job.json"                 # job schema + compl
 scripts/job-evidence.sh "<folder>" [--scope enterprise]     # one evidence query per requirement
 scripts/claims.sh search "<draft bullet>"                   # past rulings; `rebuild` after edits
 scripts/master-patch.py "<patch.json>" [--publish]          # correct the master: dry run, then publish on approval
-scripts/evidence-rebuild.sh                                 # cache ← Drive JSONL (idempotent)
+scripts/evidence-sync.sh                                    # intake inbox + invariant + cache ← three JSONL files (idempotent)
+scripts/evidence-review.py approve|reject <doc_id> --write  # move a pending document (ADR-0007; the tailor asks at point of use)
 scripts/evidence-dups.sh [--threshold 0.94]                 # near-duplicate pairs to review
 scripts/retrieval-eval.py build|pool|score                  # graded retrieval test (evidence/eval/)
 scripts/render.sh "<folder>" "<Role Title>"                 # validate + render + gate <Name>-<Role>.pdf
