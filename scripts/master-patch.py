@@ -17,6 +17,7 @@ patch.json:
    ]}
 Paths are JSON Pointers (RFC 6901). `sub` replaces one exact substring of a string field and
 fails if it is absent or ambiguous; `remove` deletes an array item or key and fails unless its
+current value equals `expect`; `replace` swaps a whole value (`value`) and fails unless the
 current value equals `expect`; `move` (as in RFC 6902) reorders an item within one array and
 fails unless every key in `expect` matches the item being moved. A patch that no longer matches the live master FAILS — re-derive
 it, never force it.
@@ -102,6 +103,10 @@ def main(argv=None):
                     f"error: {e['path']}: value is {parent[key]!r}, expected {e.get('expect')!r}"
                 )
             del parent[key]
+        elif e.get("op") == "replace":
+            if parent[key] != e.get("expect"):
+                sys.exit(f"error: {e['path']}: current value differs from expect")
+            parent[key] = e["value"]
         elif e.get("op") == "move":
             src, i = pointer(new, e["from"])
             if src is not parent or not isinstance(parent, list):
