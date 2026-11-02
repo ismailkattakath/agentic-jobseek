@@ -1,8 +1,7 @@
 # ADR-0006 — Periodic evidence refresh: a cloud routine proposes, a local step applies
 
 **Status:** accepted, 2026-11-02. Decided on a cloud proof run and an embedding-parity test
-(§ 4); not yet built. Next: a second proof run for what § 4b lists, then a one-week dry run
-(§ 6).
+(§ 4); not yet built. Both proof runs passed (§ 4, § 4b). Next: a one-week dry run (§ 6).
 
 ## 1. Decision
 
@@ -88,18 +87,26 @@ measurements and the 0.94 threshold carry over without a re-embed.
 **Neon Free fits:** text 1.56 MB + 514 × 768-d vectors ≈ 1.6 MB + index, under 10 MB against
 0.5 GB per project; a weekly run of minutes against 100 CU-hours a month; no inactivity pause.
 
-## 4b. Not yet measured — the second proof run's checklist
+## 4b. Second proof run, 2026-11-02 — the Match step's dependencies
 
-The first proof run did not exercise the Match step's dependencies:
+One-off routine in a dedicated environment (`evidence-refresh`: Limited network + package
+managers + `huggingface.co`, `*.huggingface.co`, `*.hf.co`; a setup script that installs
+`fastembed` in a venv and downloads nomic-embed-text-v1.5 to `/opt/fastembed-cache`):
 
-- **Neon from a cloud run.** `console.neon.tech` answered 401 over HTTP; untested are the Neon
-  connector's SQL tool accepting a 768-float vector literal, and Postgres wire protocol (5432)
-  from the sandbox — the allowlist covers HTTP hosts, and network secrets attach only to HTTP.
-- **The model download.** `huggingface.co` is not on the default allowlist. The routine needs
-  its own environment with that host allowed, and the model fetched in the **setup script**,
-  whose result is cached per environment, so a run does not re-download about 550 MB.
-- **The GitLab connector.** Which account it is signed in as, and whether it lists that
-  account's merge requests.
+| Check | Result |
+|---|---|
+| Setup script, first session | 2 min 56 s (523 MB model) — under the ~5 min cache limit, so it is snapshotted |
+| Embedding from the cached model | 768-d, **7.7 s** cold, no download |
+| Neon connector `run_sql` with a full 768-float literal (8,058 bytes) passed three times | ✅ `d = 0`, `n = 768`; pgvector 0.8.6 |
+| GitHub REST search under Limited network | ✅ 206 |
+| GitLab connector | ✅ signed in as the alternate persona; listing merge requests needs a project or group, and the persona's work is mostly direct pushes, so GitLab discovery reads **commits per project**, not merge requests |
+| Scheduled `run_once_at` | ❌ **did not fire** — no session, no warning, `next_run_at` stuck past due; **Run now** worked |
+
+**Consequences.** The snapshot expires after about 7 days, so a weekly run usually re-runs
+setup (~3 min, free). A silently missed schedule is real: the routine appends one line per run
+to `evidence/runs.jsonl` in Drive (date, sources read, proposals written), and the watermark
+makes a missed week a late week, not a lost one. "Succeeded" on the History row means only
+that the session ended cleanly; the run log carries the truth.
 
 ## 5. Rejected
 
@@ -108,7 +115,7 @@ The first proof run did not exercise the Match step's dependencies:
 | bragdoc CLI (MIT, 27★) | own cache and schedule, cloud sync by default, export format and author attribution undocumented, no GitLab — a second store |
 | brag-skill, bragbot, Git Brag, brag-ai | 2–8★; produce documents, not records |
 | awesome-copilot `brag-sheet` as the engine | prompt text, not a tool — its rules are adopted (§ 3), not the skill |
-| Desktop local scheduled task (nix-config ADR-010, lane 1) | needs the Mac awake and the app open; GitHub, Drive and PyPI are proven reachable from the cloud (§ 4), the rest is § 4b |
+| Desktop local scheduled task (nix-config ADR-010, lane 1) | needs the Mac awake and the app open; every dependency is proven reachable from the cloud (§ 4, § 4b) |
 | Attach every source repository | each is cloned on every run; REST search finds the work without it |
 | Neon AI Gateway embeddings | not on the Free plan; a new model would void ADR-0004 |
 | Supabase | Free projects pause after 7 days of low activity — the weekly cadence's edge |
