@@ -18,6 +18,7 @@ Sibling projects: `ismailkattakath/agentic-nomad` (travel) and `ismailkattakath/
 The stack and every rejected option: `docs/adr/0001-stack.md`. Where data and evidence live,
 and why the RAG is a cache: `docs/adr/0002-data-and-evidence.md`. The job schema, the claims
 ledger, the single master and the theme trial: `docs/adr/0003-job-schema-claims-and-master.md`.
+How retrieval is measured and why it is hybrid: `docs/adr/0004-retrieval-measured.md`.
 
 ## Architecture — four stages, one gate
 
@@ -79,6 +80,8 @@ scripts/job-evidence.sh "<folder>" [--scope enterprise]     # one evidence query
 scripts/claims.sh search "<draft bullet>"                   # past rulings; `rebuild` after edits
 scripts/master-patch.py "<patch.json>" [--publish]          # correct the master: dry run, then publish on approval
 scripts/evidence-rebuild.sh                                 # cache ← Drive JSONL (idempotent)
+scripts/evidence-dups.sh [--threshold 0.94]                 # near-duplicate pairs to review
+scripts/retrieval-eval.py build|pool|score                  # graded retrieval test (evidence/eval/)
 scripts/render.sh "<folder>" "<Role Title>"                 # validate + render <Name>-<Role>.pdf
 scripts/final-check.py "<folder>"                           # pre-submit gate (exit 1 = fix first)
 nix flake check                                             # formatting + toolchain + offline gate

@@ -19,7 +19,7 @@ vectors are recomputed from it.
 
 | Property | Evidence |
 |---|---|
-| The vectors are reproducible from the text | Re-embedding `content` alone with `embed()` gave cosine distance **0** against the stored vector (3 of 3 rows sampled, 2026-11-01) |
+| The vectors are reproducible from the text | Re-embedding `content` alone with `embed()` gave cosine distance **0** against the stored vector (3 of 3 rows sampled, 2026-11-01). Since ADR-0004 the input is `'search_document: ' || content`, recorded per row in `embed_spec` |
 | A rebuild is faithful | Rebuilding all **477** rows into a scratch table: 0 missing, metadata identical, max cosine distance **4.4e-8** (float rounding) |
 | A rebuild is cheap when nothing changed | 23 s for a cold rebuild; **0.17 s** for a re-run, which re-embeds nothing (`content_hash` = sha256 of `content`) |
 

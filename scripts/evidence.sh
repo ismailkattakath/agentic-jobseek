@@ -114,12 +114,22 @@ cols="doc_type, '['||source_class||'] '||title AS title, company, repo"
 # The query vector is computed ONCE in a materialized CTE: written inline in ORDER BY, the
 # planner seq-scans and calls embed() — an HTTP call to Ollama — once per ROW (measured
 # 2026-11-01: 8.9 s per query over 477 rows).
-sql="WITH q AS MATERIALIZED (SELECT embed(:'q')::vector AS v)
+# HYBRID: reciprocal-rank fusion (k=60) of the top 50 by vector distance and the top 50 by
+# full-text rank (any query word, English stemming). Measured on the graded set
+# (docs/adr/0004): nDCG@10 +0.104 over vector-only, 95% CI [+0.051, +0.159].
+sql="WITH q AS MATERIALIZED (SELECT embed('search_query: ' || :'q')::vector AS v),
+     tq AS MATERIALIZED (SELECT to_tsquery('english', coalesce(nullif(array_to_string(
+            tsvector_to_array(to_tsvector('english', :'q')), ' | '), ''), 'xxnomatchxx')) AS t),
+     pool AS (SELECT * FROM career_docs
+              WHERE (:'scope' = '' OR source_class = :'scope') AND doc_type = ANY(ARRAY[$types_sql])),
+     v AS (SELECT p.id, row_number() OVER (ORDER BY p.embedding <=> q.v) AS r
+           FROM pool p, q ORDER BY p.embedding <=> q.v LIMIT 50),
+     b AS (SELECT p.id, row_number() OVER (ORDER BY ts_rank_cd(p.tsv, tq.t) DESC) AS r
+           FROM pool p, tq WHERE p.tsv @@ tq.t ORDER BY ts_rank_cd(p.tsv, tq.t) DESC LIMIT 50),
+     f AS (SELECT id, sum(1.0 / (60 + r)) AS s FROM (SELECT * FROM v UNION ALL SELECT * FROM b) u GROUP BY id)
      SELECT $cols
-     FROM career_docs, q
-     WHERE (:'scope' = '' OR source_class = :'scope')
-       AND doc_type = ANY(ARRAY[$types_sql])
-     ORDER BY embedding <=> q.v
+     FROM f JOIN career_docs USING (id)
+     ORDER BY f.s DESC
      LIMIT :k;"
 printf '%s\n' "$sql" | psql "$RAGDB_URI" -X -q -v ON_ERROR_STOP=1 -tA -F $'\t' \
   -v q="$query" -v scope="$scope" -v k="$k"

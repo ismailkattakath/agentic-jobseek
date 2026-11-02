@@ -47,16 +47,21 @@ CREATE TABLE IF NOT EXISTS resume_claims (
   content_hash text PRIMARY KEY,
   claim        text NOT NULL,
   doc          jsonb NOT NULL,
-  embedding    vector(768)
+  embedding    vector(768),
+  embed_spec   text
 );
+ALTER TABLE resume_claims ADD COLUMN IF NOT EXISTS embed_spec text;
 CREATE TEMP TABLE stage (doc jsonb);
 \copy stage (doc) FROM pstdin WITH (FORMAT csv, QUOTE E'\x01', DELIMITER E'\x02')
 BEGIN;
+-- Re-embed rows made under another recipe (nomic task prefixes; see evidence-rebuild.sh).
+UPDATE resume_claims SET embedding = embed('search_document: ' || claim), embed_spec = 'nomic-embed-text|search_document: '
+ WHERE embed_spec IS DISTINCT FROM 'nomic-embed-text|search_document: ';
 DELETE FROM resume_claims c WHERE NOT EXISTS (SELECT 1 FROM stage s WHERE s.doc->>'content_hash' = c.content_hash);
 UPDATE resume_claims c SET doc = s.doc FROM stage s
  WHERE s.doc->>'content_hash' = c.content_hash AND c.doc IS DISTINCT FROM s.doc;
-INSERT INTO resume_claims (content_hash, claim, doc, embedding)
-SELECT s.doc->>'content_hash', s.doc->>'claim', s.doc, embed(s.doc->>'claim') FROM stage s
+INSERT INTO resume_claims (content_hash, claim, doc, embedding, embed_spec)
+SELECT s.doc->>'content_hash', s.doc->>'claim', s.doc, embed('search_document: ' || (s.doc->>'claim')), 'nomic-embed-text|search_document: ' FROM stage s
  WHERE NOT EXISTS (SELECT 1 FROM resume_claims c WHERE c.content_hash = s.doc->>'content_hash');
 COMMIT;
 SELECT 'resume_claims: ' || count(*) || ' claims, ' || count(embedding) || ' embedded' FROM resume_claims;
@@ -79,7 +84,7 @@ search)
     exit 1
   }
   # The query vector is computed once (see evidence.sh): inline, embed() runs per row.
-  printf '%s\n' "WITH q AS MATERIALIZED (SELECT embed(:'q')::vector AS v)
+  printf '%s\n' "WITH q AS MATERIALIZED (SELECT embed('search_query: ' || :'q')::vector AS v)
   SELECT doc->>'verdict', round((1 - (embedding <=> q.v))::numeric, 2),
        doc->>'claim', coalesce(doc->>'use', ''), coalesce(doc->>'note', '')
   FROM resume_claims, q ORDER BY embedding <=> q.v LIMIT :k;" |

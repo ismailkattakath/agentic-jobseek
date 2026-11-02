@@ -7,8 +7,10 @@
 # whose content_hash left the file deleted. Safe to re-run; an unchanged file re-embeds nothing.
 #
 # Embeddings are computed IN-DB by embed(text) (nomic-embed-text via the local Ollama), over
-# the row's `content` alone — the same input the original store used (verified 2026-11-01:
-# cosine distance 0 between stored and recomputed vectors).
+# 'search_document: ' || content — the task prefix the model card says MUST be present
+# (queries use 'search_query: ', see evidence.sh). Each row records that recipe in embed_spec;
+# a row embedded under any other spec is re-embedded, so changing the recipe is one constant
+# here plus one rebuild. embed() itself stays prefix-free: it is shared with other tables.
 #
 #   --table NAME   target table (default career_docs). Use a scratch name to rehearse:
 #                  scripts/evidence-rebuild.sh --table career_docs_rehearsal
@@ -96,8 +98,14 @@ CREATE TABLE IF NOT EXISTS :"tbl" (
   metadata          jsonb DEFAULT '{}'::jsonb,
   created_at        timestamptz DEFAULT now(),
   updated_at        timestamptz DEFAULT now(),
-  source_class      text DEFAULT 'enterprise'
+  source_class      text DEFAULT 'enterprise',
+  embed_spec        text
 );
+ALTER TABLE :"tbl" ADD COLUMN IF NOT EXISTS embed_spec text;
+-- The keyword half of the hybrid search in evidence.sh (docs/adr/0004).
+ALTER TABLE :"tbl" ADD COLUMN IF NOT EXISTS tsv tsvector
+  GENERATED ALWAYS AS (to_tsvector('english', coalesce(title, '') || ' ' || content)) STORED;
+\set spec 'nomic-embed-text|search_document: '
 
 CREATE TEMP TABLE stage (doc jsonb);
 \copy stage (doc) FROM pstdin WITH (FORMAT csv, QUOTE E'\x01', DELIMITER E'\x02')
@@ -122,6 +130,10 @@ FROM stage;
 BEGIN;
 DELETE FROM :"tbl" t WHERE NOT EXISTS (SELECT 1 FROM incoming i WHERE i.content_hash = t.content_hash);
 
+-- A row embedded under another recipe is re-embedded, whatever else changed.
+UPDATE :"tbl" t SET embedding = embed('search_document: ' || t.content), embed_spec = :'spec'
+WHERE t.embed_spec IS DISTINCT FROM :'spec';
+
 -- Same hash = same content = same vector: refresh the metadata only, never re-embed.
 UPDATE :"tbl" t SET company = i.company, repo = i.repo, doc_type = i.doc_type, title = i.title,
        skills = i.skills, technologies = i.technologies, domains = i.domains,
@@ -137,16 +149,18 @@ WHERE i.content_hash = t.content_hash
 
 INSERT INTO :"tbl" (content, embedding, company, repo, doc_type, title, skills, technologies,
                     domains, author_confidence, period, content_hash, metadata, source_class,
-                    created_at)
-SELECT i.content, embed(i.content), i.company, i.repo, i.doc_type, i.title, i.skills,
+                    created_at, embed_spec)
+SELECT i.content, embed('search_document: ' || i.content), i.company, i.repo, i.doc_type, i.title, i.skills,
        i.technologies, i.domains, i.author_confidence, i.period, i.content_hash, i.metadata,
-       i.source_class, i.created_at
+       i.source_class, i.created_at, :'spec'
 FROM incoming i
 WHERE NOT EXISTS (SELECT 1 FROM :"tbl" t WHERE t.content_hash = i.content_hash);
 COMMIT;
 
 \set idx :tbl '_embedding_hnsw'
 CREATE INDEX IF NOT EXISTS :"idx" ON :"tbl" USING hnsw (embedding vector_cosine_ops);
+\set tidx :tbl '_tsv_gin'
+CREATE INDEX IF NOT EXISTS :"tidx" ON :"tbl" USING gin (tsv);
 SELECT 'table ' || :'tbl' || ': ' || count(*) || ' rows, ' || count(embedding) || ' embedded' FROM :"tbl";
 SQL
 psql "$RAGDB_URI" -X -q -v ON_ERROR_STOP=1 -v tbl="$table" -f "$sql" <"$src"

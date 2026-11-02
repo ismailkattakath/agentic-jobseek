@@ -42,3 +42,8 @@ to the table directly** — a row that exists only in the cache is lost on the n
 3. **Hash:** `content_hash` = `sha256(content)` in hex. The rebuild rejects a mismatch.
 4. **Rebuild:** `scripts/evidence-rebuild.sh` — it embeds only new or changed content.
 5. **Check:** `scripts/evidence.sh "<the new claim>" --k 3` returns the new doc.
+6. **Duplicates:** `scripts/evidence-dups.sh` — a new doc that restates an existing one (same PR,
+   same fix) is merged into the more precise doc (fold in its unique facts, record
+   `metadata.merged_from`), then rebuild. An overview and a detail doc are not duplicates.
+7. **After a large batch,** re-score retrieval: `scripts/retrieval-eval.py build && scripts/retrieval-eval.py score`
+   (docs/adr/0004). New documents are unjudged until the pool is re-graded.
