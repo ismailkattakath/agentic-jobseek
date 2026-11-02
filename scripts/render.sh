@@ -55,8 +55,18 @@ out="$dir/$full-$role.pdf"
 # Validate before rendering.
 jsonresume validate --path "$resume"
 
+# Render from a copy in which every open role (startDate, no endDate) carries endDate: null.
+# The schema rejects null (and ""), so the stored file omits endDate; but the theme's
+# formatDateRange (jsonresume.org packages/utils/src/dates.js) renders an ABSENT endDate as a
+# single date and only an explicit null as "<start> - Present". Without this the current job
+# reads "Mar 2026" — to an ATS, a one-month role. final-check.py asserts the "Present".
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+jq '(.work // []) |= map(if has("startDate") and (has("endDate") | not) then .endDate = null else . end)' \
+  "$resume" >"$tmp/resume.json"
+
 # Render (jsonresume print emits resume.pdf into --destination), then name it.
-jsonresume print --path "$resume" --destination "$dir"
-mv -f "$dir/resume.pdf" "$out"
+jsonresume print --path "$tmp/resume.json" --destination "$tmp"
+mv -f "$tmp/resume.pdf" "$out"
 
 echo "rendered $out"
