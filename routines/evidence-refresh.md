@@ -50,7 +50,8 @@ three settings is ignored.
 ## Steps
 
 1. **Window.** List `JOBSEEK_INBOX_FOLDER_ID` with the Drive connector. `since` is the fire text's
-   value, else the `until` of the newest `run-*.json`, else 7 days ago. `until` is the fire text's
+   value, else the `until` of the newest `run-*.json` in that folder or its `applied/` subfolder
+   (the apply step moves files there), else 7 days ago. `until` is the fire text's
    value, else today. Dates are UTC.
 2. **Discover — GitHub.** Page through
    `gh api 'search/issues?q=author:$EVIDENCE_GITHUB_AUTHOR+is:pr+is:merged+merged:<since>..<until>&per_page=100&page=N'`
