@@ -8,8 +8,9 @@
 #   search   the nearest past rulings for a draft bullet — reuse a vetted wording, or learn it was
 #            already rejected, before the fact-checker has to find it again
 set -euo pipefail
-
-: "${RAGDB_URI:?set RAGDB_URI to the ragdb connection string}"
+here="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=db-env.sh
+. "$here/db-env.sh" "$@"
 src="${JOBSEEK_DRIVE_DIR:?set JOBSEEK_DRIVE_DIR to the job-search folder in Drive}/evidence/claims.jsonl"
 cmd="${1:-}"
 shift || true
@@ -54,19 +55,20 @@ ALTER TABLE resume_claims ADD COLUMN IF NOT EXISTS embed_spec text;
 CREATE TEMP TABLE stage (doc jsonb);
 \copy stage (doc) FROM pstdin WITH (FORMAT csv, QUOTE E'\x01', DELIMITER E'\x02')
 BEGIN;
--- Re-embed rows made under another recipe (nomic task prefixes; see evidence-rebuild.sh).
-UPDATE resume_claims SET embedding = embed('search_document: ' || claim), embed_spec = 'nomic-embed-text|search_document: '
+-- Rows made under another recipe are re-embedded by scripts/embed.py fill (see evidence-rebuild.sh).
+UPDATE resume_claims SET embedding = NULL, embed_spec = NULL
  WHERE embed_spec IS DISTINCT FROM 'nomic-embed-text|search_document: ';
 DELETE FROM resume_claims c WHERE NOT EXISTS (SELECT 1 FROM stage s WHERE s.doc->>'content_hash' = c.content_hash);
 UPDATE resume_claims c SET doc = s.doc FROM stage s
  WHERE s.doc->>'content_hash' = c.content_hash AND c.doc IS DISTINCT FROM s.doc;
 INSERT INTO resume_claims (content_hash, claim, doc, embedding, embed_spec)
-SELECT s.doc->>'content_hash', s.doc->>'claim', s.doc, embed('search_document: ' || (s.doc->>'claim')), 'nomic-embed-text|search_document: ' FROM stage s
+SELECT s.doc->>'content_hash', s.doc->>'claim', s.doc, NULL, NULL FROM stage s
  WHERE NOT EXISTS (SELECT 1 FROM resume_claims c WHERE c.content_hash = s.doc->>'content_hash');
 COMMIT;
-SELECT 'resume_claims: ' || count(*) || ' claims, ' || count(embedding) || ' embedded' FROM resume_claims;
 SQL
-  psql "$RAGDB_URI" -X -q -v ON_ERROR_STOP=1 -tA -f "$sql" <"$src"
+  psql "$JOBSEEK_DB_URI" -X -q -v ON_ERROR_STOP=1 -tA -f "$sql" <"$src"
+  python3 "$here/embed.py" fill resume_claims claim
+  psql "$JOBSEEK_DB_URI" -X -tA -c "SELECT 'resume_claims: ' || count(*) || ' claims, ' || count(embedding) || ' embedded' FROM resume_claims"
   ;;
 search)
   query="${1:?usage: scripts/claims.sh search \"<text>\" [--k N]}"
@@ -78,17 +80,18 @@ search)
     ;;
   esac
   want=$(grep -c . "$src" 2>/dev/null || echo 0)
-  have=$(psql "$RAGDB_URI" -X -tA -c "SELECT count(*) FROM resume_claims" 2>/dev/null || echo missing)
+  have=$(psql "$JOBSEEK_DB_URI" -X -tA -c "SELECT count(*) FROM resume_claims" 2>/dev/null || echo missing)
   [ "$have" = "$want" ] || {
     echo "error: resume_claims has $have rows but the source has $want — run scripts/claims.sh rebuild" >&2
     exit 1
   }
-  # The query vector is computed once (see evidence.sh): inline, embed() runs per row.
-  printf '%s\n' "WITH q AS MATERIALIZED (SELECT embed('search_query: ' || :'q')::vector AS v)
+  # The query is embedded on this Mac (scripts/embed.py); the cache in Neon cannot reach Ollama.
+  qv=$(python3 "$here/embed.py" query "$query")
+  printf '%s\n' "WITH q AS MATERIALIZED (SELECT :'qv'::vector AS v)
   SELECT doc->>'verdict', round((1 - (embedding <=> q.v))::numeric, 2),
        doc->>'claim', coalesce(doc->>'use', ''), coalesce(doc->>'note', '')
   FROM resume_claims, q ORDER BY embedding <=> q.v LIMIT :k;" |
-    psql "$RAGDB_URI" -X -q -v ON_ERROR_STOP=1 -tA -F $'\t' -v q="$query" -v k="$k"
+    psql "$JOBSEEK_DB_URI" -X -q -v ON_ERROR_STOP=1 -tA -F $'\t' -v qv="$qv" -v k="$k"
   ;;
 *)
   sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'

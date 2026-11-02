@@ -11,7 +11,8 @@ live in Google Drive, reached through `$JOBSEEK_DRIVE_DIR`.
 ```bash
 echo 'export JOBSEEK_DRIVE_DIR="<your job-search folder in Drive for Desktop>"' > .envrc.local
 direnv allow                       # .envrc sources the gitignored .envrc.local
-export RAGDB_URI="<a pgvector database with an embed(text) function>"
+secret set neon:agentic-jobseek:uri  # the cache's Postgres+pgvector connection string (docs/adr/0006)
+echo 'export JOBSEEK_DB_SECRET="neon:agentic-jobseek:uri"' >> .envrc.local
 scripts/evidence-rebuild.sh        # build the evidence cache from $JOBSEEK_DRIVE_DIR/evidence/
 ```
 

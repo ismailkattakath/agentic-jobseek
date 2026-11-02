@@ -56,8 +56,11 @@ unset.
 | **Claims ledger** — every fact-check ruling and the wording to use | `evidence/claims.jsonl` |
 
 The `career_docs` and `resume_claims` pgvector tables are **caches** of those two files, rebuilt by
-`scripts/evidence-rebuild.sh` and `scripts/claims.sh rebuild`. `RAGDB_URI` reaches it (exported by the operator's
-environment; a loopback store).
+`scripts/evidence-rebuild.sh` and `scripts/claims.sh rebuild`, and they live in Neon (docs/adr/0006).
+`JOBSEEK_DB_SECRET` names the Keychain item holding the connection string; `scripts/db-env.sh` runs
+each script under `secret exec`, so the password is never exported. Embeddings are computed on the
+client — `scripts/embed.py` (Ollama) here, fastembed in the cloud routine; hybrid search is the one
+file `scripts/sql/evidence-search.sql`.
 
 ## Where things live in the repo
 

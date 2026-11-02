@@ -12,6 +12,8 @@
 # 0.932 raw and 0.947 prefixed; above 0.95 sat only overview-vs-overview pairs and one pattern
 # reused in two repos. Expect to read a dozen pairs and merge few.
 set -euo pipefail
+# shellcheck source=db-env.sh
+. "$(cd "$(dirname "$0")" && pwd)/db-env.sh" "$@"
 
 threshold=0.94
 [ "${1:-}" = "--threshold" ] && threshold="${2:?}"
@@ -20,11 +22,10 @@ case "$threshold" in 0.[0-9]* | 1) ;; *)
   exit 2
   ;;
 esac
-: "${RAGDB_URI:?set RAGDB_URI to the ragdb connection string}"
 
 printf '%s\n' "SELECT round((1 - (a.embedding <=> b.embedding))::numeric, 3), a.id, b.id, a.title, b.title
-  FROM career_docs a JOIN career_docs b ON a.id < b.id
+  FROM public.career_docs a JOIN public.career_docs b ON a.id < b.id
   WHERE 1 - (a.embedding <=> b.embedding) >= :thr
   ORDER BY a.embedding <=> b.embedding;" |
-  psql "$RAGDB_URI" -X -q -v ON_ERROR_STOP=1 -tA -F $'\t' -v thr="$threshold" |
+  psql "$JOBSEEK_DB_URI" -X -q -v ON_ERROR_STOP=1 -tA -F $'\t' -v thr="$threshold" |
   awk -F'\t' 'BEGIN { n = 0 } { n++; printf "%s  #%s %s\n       #%s %s\n", $1, $2, $4, $3, $5 } END { printf "%d pair(s) at >= '"$threshold"'\n", n > "/dev/stderr" }'

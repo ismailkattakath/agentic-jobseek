@@ -108,6 +108,34 @@ to `evidence/runs.jsonl` in Drive (date, sources read, proposals written), and t
 makes a missed week a late week, not a lost one. "Succeeded" on the History row means only
 that the session ended cleanly; the run log carries the truth.
 
+## 4c. The cache switch to Neon, measured 2026-11-02
+
+| Check | Result |
+|---|---|
+| Rows, vectors, metadata after the load | identical — one md5 over every `content_hash`, vector and `embed_spec` matched on both sides |
+| `scripts/embed.py` (POST /api/embeddings, as the retired `embed()`) vs `embed()` | cosine 1.0 |
+| Full rebuild from the JSONL into a scratch table, embedding on the client | 514 rows in 26 s, every vector cosine 1.0 against the stored ones |
+| `claims.sh` search, old (local) vs new (Neon) | identical rows |
+| **Hybrid search quality, 55 graded queries, the production SQL** | local **0.727** nDCG@10, Neon **0.722**; Δ −0.0045, 95% CI [−0.0097, −0.0003], 5 wins / 9 losses / 41 ties |
+| HNSW index vs exact scan | the same numbers on both sides — the index is not the cause |
+
+**Why Neon ranks 0.0045 lower:** its keyword index tokenizes differently. Neon runs PostgreSQL 18
+with a `C.UTF-8` database; the local store ran 16 with `C`. 439 of 514 `tsv` rows differ: the
+newer Snowball stemmer keeps *added* as `add` (16 made it `ad`), and `—`, `→` and `…` stop being
+indexed as words. Both are corrections; the cost is half a point on this set. Accepted.
+
+**Two tools fixed on the way.** The judged pool was built from `retrieval-eval.py`'s own copy of
+hybrid search, so 38 % of production's top-10 was unjudged; 215 pairs were graded blind (four
+assessors, 20/24 hidden controls exact, 24/24 within one grade) and `qrels.jsonl` grew from 631 to
+846 judgments. `retrieval-eval.py` now scores `scripts/sql/evidence-search.sql` — the query
+tailoring runs — instead of re-implementing it: the old copy reported 0.703 while production was
+0.727 (ADR-0004 corrected).
+
+**Connections.** Scripts read the Keychain item named by `JOBSEEK_DB_SECRET` through
+`secret exec` (`scripts/db-env.sh`), never an exported variable, and connect directly rather than
+through Neon's pooler: the pooler's transaction mode drops temp tables between transactions and
+carried a dump's `search_path` into the next client.
+
 ## 5. Rejected
 
 | Option | Why it lost |

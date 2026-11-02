@@ -6,15 +6,19 @@
 # mirror of the file — new rows are inserted and embedded, changed rows re-embedded, rows
 # whose content_hash left the file deleted. Safe to re-run; an unchanged file re-embeds nothing.
 #
-# Embeddings are computed IN-DB by embed(text) (nomic-embed-text via the local Ollama), over
-# 'search_document: ' || content — the task prefix the model card says MUST be present
-# (queries use 'search_query: ', see evidence.sh). Each row records that recipe in embed_spec;
-# a row embedded under any other spec is re-embedded, so changing the recipe is one constant
-# here plus one rebuild. embed() itself stays prefix-free: it is shared with other tables.
+# The table lives in Neon (docs/adr/0006); the connection comes from scripts/db-env.sh. New and
+# re-embedded rows are written with a NULL vector, then scripts/embed.py fill embeds them on this
+# Mac (nomic-embed-text via the local Ollama) over 'search_document: ' || content — the task
+# prefix the model card says MUST be present (queries use 'search_query: ', see evidence.sh).
+# Each row records that recipe in embed_spec; a row embedded under any other spec is re-embedded,
+# so changing the recipe is one constant in embed.py plus one rebuild.
 #
 #   --table NAME   target table (default career_docs). Use a scratch name to rehearse:
 #                  scripts/evidence-rebuild.sh --table career_docs_rehearsal
 set -euo pipefail
+here="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=db-env.sh
+. "$here/db-env.sh" "$@"
 
 table="career_docs"
 while [ "$#" -gt 0 ]; do
@@ -39,7 +43,6 @@ case "$table" in '' | *[!a-z0-9_]*)
   ;;
 esac
 
-: "${RAGDB_URI:?set RAGDB_URI to the ragdb connection string (loopback pgvector store)}"
 data="${JOBSEEK_DRIVE_DIR:?set JOBSEEK_DRIVE_DIR to the job-search folder in Drive}"
 src="$data/evidence/career_docs.jsonl"
 [ -f "$src" ] || {
@@ -131,7 +134,7 @@ BEGIN;
 DELETE FROM :"tbl" t WHERE NOT EXISTS (SELECT 1 FROM incoming i WHERE i.content_hash = t.content_hash);
 
 -- A row embedded under another recipe is re-embedded, whatever else changed.
-UPDATE :"tbl" t SET embedding = embed('search_document: ' || t.content), embed_spec = :'spec'
+UPDATE :"tbl" t SET embedding = NULL, embed_spec = NULL
 WHERE t.embed_spec IS DISTINCT FROM :'spec';
 
 -- Same hash = same content = same vector: refresh the metadata only, never re-embed.
@@ -150,9 +153,9 @@ WHERE i.content_hash = t.content_hash
 INSERT INTO :"tbl" (content, embedding, company, repo, doc_type, title, skills, technologies,
                     domains, author_confidence, period, content_hash, metadata, source_class,
                     created_at, embed_spec)
-SELECT i.content, embed('search_document: ' || i.content), i.company, i.repo, i.doc_type, i.title, i.skills,
+SELECT i.content, NULL, i.company, i.repo, i.doc_type, i.title, i.skills,
        i.technologies, i.domains, i.author_confidence, i.period, i.content_hash, i.metadata,
-       i.source_class, i.created_at, :'spec'
+       i.source_class, i.created_at, NULL
 FROM incoming i
 WHERE NOT EXISTS (SELECT 1 FROM :"tbl" t WHERE t.content_hash = i.content_hash);
 COMMIT;
@@ -161,6 +164,9 @@ COMMIT;
 CREATE INDEX IF NOT EXISTS :"idx" ON :"tbl" USING hnsw (embedding vector_cosine_ops);
 \set tidx :tbl '_tsv_gin'
 CREATE INDEX IF NOT EXISTS :"tidx" ON :"tbl" USING gin (tsv);
+SQL
+psql "$JOBSEEK_DB_URI" -X -q -v ON_ERROR_STOP=1 -v tbl="$table" -f "$sql" <"$src"
+python3 "$here/embed.py" fill "$table" content
+psql "$JOBSEEK_DB_URI" -X -tA -v tbl="$table" <<'SQL'
 SELECT 'table ' || :'tbl' || ': ' || count(*) || ' rows, ' || count(embedding) || ' embedded' FROM :"tbl";
 SQL
-psql "$RAGDB_URI" -X -q -v ON_ERROR_STOP=1 -v tbl="$table" -f "$sql" <"$src"

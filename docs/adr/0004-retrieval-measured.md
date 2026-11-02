@@ -1,7 +1,9 @@
 # ADR-0004 — Retrieval, measured: hybrid search, task prefixes, near-duplicate review
 
 **Status:** accepted, 2026-11-01. Every change here was decided on the graded test set below,
-not on a recommendation.
+not on a recommendation. **Corrected 2026-11-02 (ADR-0006 § 4c):** the hybrid row below scored
+`retrieval-eval.py`'s own re-implementation; the query `evidence.sh` runs (doc-type filter, fusion
+in SQL) scores 0.727 on the enlarged judgment set, and the script now scores that query.
 
 ## 1. The test set — `scripts/retrieval-eval.py`
 

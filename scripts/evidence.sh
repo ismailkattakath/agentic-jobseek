@@ -3,14 +3,11 @@
 # requirement, or bullet. This is the "evidence gate" primitive: tailoring and cover
 # letters may only sharpen/add a point that this returns real backing for.
 #
-# The store (career_docs) is a local pgvector table of the operator's git-attributed career,
-# embedded on-device (nomic-embed-text, 768-d). Retrieval embeds the query IN-DB via the
-# embed() function, so no client-side embedding is needed — one SQL statement.
-#
-# Requires RAGDB_URI in the environment (the ragdb connection string; a loopback,
-# trust-auth pgvector store — not a secret, but kept out of the repo so no infra
-# coordinates are committed). Equivalent path: the global `postgres` MCP `execute_sql`
-# with the same query. See CLAUDE.md > Evidence backend.
+# The store (career_docs) is a pgvector cache in Neon of the operator's git-attributed career
+# (docs/adr/0006), embedded with nomic-embed-text (768-d). The query is embedded on the client by
+# scripts/embed.py and ranked by scripts/sql/evidence-search.sql — the same file the cloud
+# evidence-refresh routine runs. The connection comes from scripts/db-env.sh (Keychain, never
+# exported).
 #
 # Usage:
 #   scripts/evidence.sh "<claim or JD requirement>" [--scope enterprise|personal-project|oss-contribution]
@@ -24,6 +21,9 @@
 #   scripts/evidence.sh "exactly-once processing on SQS" --scope enterprise
 #   scripts/evidence.sh "diffusion / ComfyUI pipelines" --k 4 --full
 set -euo pipefail
+here="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=db-env.sh
+. "$here/db-env.sh" "$@"
 
 usage() {
   sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
@@ -77,7 +77,6 @@ case "$k" in '' | *[!0-9]*)
   ;;
 esac
 
-: "${RAGDB_URI:?set RAGDB_URI to the ragdb connection string (loopback pgvector career store)}"
 command -v psql >/dev/null 2>&1 || {
   echo "error: psql not found on PATH" >&2
   exit 1
@@ -92,44 +91,21 @@ src="${JOBSEEK_DRIVE_DIR:?set JOBSEEK_DRIVE_DIR to the job-search folder in Driv
   exit 1
 }
 want=$(grep -c . "$src" || true)
-have=$(psql "$RAGDB_URI" -X -tA -c "SELECT count(*) FROM career_docs" 2>/dev/null || echo "missing")
+have=$(psql "$JOBSEEK_DB_URI" -X -tA -c "SELECT count(*) FROM public.career_docs" 2>/dev/null || echo "missing")
 if [ "$have" != "$want" ]; then
   echo "error: career_docs has $have rows but the source has $want — run scripts/evidence-rebuild.sh" >&2
   exit 1
 fi
 
-# Sanitize the doc_type CSV into a safe SQL array literal (letters/underscores only).
-types_sql=$(printf '%s' "$types" | tr ',' '\n' |
-  sed 's/[^a-z_]//g' | sed '/^$/d' | sed "s/.*/'&'/" | paste -sd, -)
-[ -n "$types_sql" ] || {
+# Sanitize the doc_type CSV into a Postgres text-array literal (letters/underscores only).
+types_arr=$(printf '%s' "$types" | tr ',' '\n' | sed 's/[^a-z_]//g' | sed '/^$/d' | paste -sd, -)
+[ -n "$types_arr" ] || {
   echo "error: --types produced no valid doc_type" >&2
   exit 2
 }
 
-cols="doc_type, '['||source_class||'] '||title AS title, company, repo"
-[ "$full" -eq 1 ] && cols="$cols, content"
-
-# Query text + scope bind as psql vars (:'q' / :'scope' quote safely). embed() runs in-DB.
-# NOTE: psql interpolates :'var' only from stdin/files, NOT from -c — so feed the SQL via stdin.
-# The query vector is computed ONCE in a materialized CTE: written inline in ORDER BY, the
-# planner seq-scans and calls embed() — an HTTP call to Ollama — once per ROW (measured
-# 2026-11-01: 8.9 s per query over 477 rows).
-# HYBRID: reciprocal-rank fusion (k=60) of the top 50 by vector distance and the top 50 by
-# full-text rank (any query word, English stemming). Measured on the graded set
-# (docs/adr/0004): nDCG@10 +0.104 over vector-only, 95% CI [+0.051, +0.159].
-sql="WITH q AS MATERIALIZED (SELECT embed('search_query: ' || :'q')::vector AS v),
-     tq AS MATERIALIZED (SELECT to_tsquery('english', coalesce(nullif(array_to_string(
-            tsvector_to_array(to_tsvector('english', :'q')), ' | '), ''), 'xxnomatchxx')) AS t),
-     pool AS (SELECT * FROM career_docs
-              WHERE (:'scope' = '' OR source_class = :'scope') AND doc_type = ANY(ARRAY[$types_sql])),
-     v AS (SELECT p.id, row_number() OVER (ORDER BY p.embedding <=> q.v) AS r
-           FROM pool p, q ORDER BY p.embedding <=> q.v LIMIT 50),
-     b AS (SELECT p.id, row_number() OVER (ORDER BY ts_rank_cd(p.tsv, tq.t) DESC) AS r
-           FROM pool p, tq WHERE p.tsv @@ tq.t ORDER BY ts_rank_cd(p.tsv, tq.t) DESC LIMIT 50),
-     f AS (SELECT id, sum(1.0 / (60 + r)) AS s FROM (SELECT * FROM v UNION ALL SELECT * FROM b) u GROUP BY id)
-     SELECT $cols
-     FROM f JOIN career_docs USING (id)
-     ORDER BY f.s DESC
-     LIMIT :k;"
-printf '%s\n' "$sql" | psql "$RAGDB_URI" -X -q -v ON_ERROR_STOP=1 -tA -F $'\t' \
-  -v q="$query" -v scope="$scope" -v k="$k"
+cols="d.doc_type, '[' || d.source_class || '] ' || d.title, d.company, d.repo"
+[ "$full" -eq 1 ] && cols="$cols, d.content"
+qv=$(python3 "$here/embed.py" query "$query")
+psql "$JOBSEEK_DB_URI" -X -q -v ON_ERROR_STOP=1 -tA -F $'\t' -v qv="$qv" -v q="$query" \
+  -v scope="$scope" -v types="{$types_arr}" -v k="$k" -v cols="$cols" -f "$here/sql/evidence-search.sql"

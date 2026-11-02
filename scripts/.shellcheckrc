@@ -1,0 +1,3 @@
+# scripts source scripts/db-env.sh; let shellcheck follow it (resolved next to the script).
+external-sources=true
+source-path=SCRIPTDIR
