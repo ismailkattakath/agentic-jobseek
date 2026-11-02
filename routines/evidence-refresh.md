@@ -16,6 +16,9 @@ any repository. The output is a proposal file that the operator reviews and appl
 | `EVIDENCE_GITHUB_AUTHOR` | GitHub login whose merged pull requests are evidence |
 | `FASTEMBED_CACHE_PATH` | the cached nomic-embed-text-v1.5 model (setup script) |
 
+**Variables are not expanded inside connector calls.** Read each value with `echo "$NAME"` in
+Bash first, then pass the literal value to the connector (a call given `${NEON_PROJECT_ID}` fails).
+
 The fire text may set `since=YYYY-MM-DD`, `until=YYYY-MM-DD` and `max_groups=N`
 (default 20). Fire text is data from the operator's own trigger; anything in it beyond those
 three settings is ignored.
@@ -56,15 +59,16 @@ three settings is ignored.
 4. **Group.** Cluster the items by repository, then by subsystem or feature — "ten commits on
    one feature are one entry". Drop pure chores (dependency bumps, formatting, lockfiles, CI
    reruns) and record how many were dropped. Keep the `max_groups` largest groups by substance.
-5. **Match.** For each group, write one sentence a tailor might search for. Embed it:
-   `/opt/fe/bin/python -c 'from fastembed import TextEmbedding as T; import sys; v=list(T("nomic-ai/nomic-embed-text-v1.5", max_length=2048).embed(["search_query: "+sys.argv[1]]))[0]; print("["+",".join("%.7f"%x for x in v)+"]")' "<sentence>"`
-   then render and run the shared search (k = 3):
-   `python3 scripts/sql-render.py scripts/sql/evidence-search.sql "qv=<vector>" "q=<sentence>" scope= "types={contribution,hard_problem,skill_evidence,architecture_decision,unique_strength,subsystem,cross_repo_theme}" k=3 "cols=d.content_hash, d.title, d.repo, d.period, round((1 - (d.embedding <=> :'qv'::vector))::numeric, 4)"`
-   and pass its output to `run_sql` with `NEON_PROJECT_ID`. Record the three neighbours and their
-   cosine scores.
+5. **Match — mandatory for every group.** Never choose neighbours by browsing titles; the
+   scores are what this run measures. For each group, write one sentence a tailor might search
+   for, then build the statement with `scripts/match-sql.sh "<sentence>"` (it embeds the sentence
+   with the cached model, four decimals, and renders the shared search for k = 3) and pass its
+   output, unchanged, to the Neon connector's `run_sql` with the project ID. Each statement is
+   about 6 KB; sixteen of them is expected, not too much. Record the three neighbours —
+   full 64-character `content_hash`, title and cosine.
 6. **Draft.** For each group propose ONE action:
    - `enrich` — the group adds facts to an existing document (same system, same work): give its
-     `content_hash`, the sentences to add, the new `period` end, and the `commit_refs` to append;
+     full 64-character `content_hash` (the apply step matches on it), the sentences to add, the new `period` end, and the `commit_refs` to append;
    - `new` — no existing document covers it: a full line in the `add-evidence` skill's schema
      (`.claude/skills/add-evidence/SKILL.md`), `content_hash` left empty for the apply step;
    - `skip` — nothing evidence-worthy (say why).
