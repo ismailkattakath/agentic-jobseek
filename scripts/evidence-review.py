@@ -69,7 +69,10 @@ def _holds(rows, key):
     key = key.strip().lower()
     return any(
         key in (r["doc_id"], r["content_hash"])
-        or (len(key) >= 8 and (r["doc_id"].startswith(key) or r["content_hash"].startswith(key)))
+        or (
+            len(key) >= 8
+            and (r["doc_id"].startswith(key) or r["content_hash"].startswith(key))
+        )
         for r in rows
     )
 
@@ -83,8 +86,12 @@ def resolve_all(keys):
             row = store._resolve(pending, key, "pending")
         except store.StoreError as e:
             msg = str(e)
-            if " matches 0 documents" in msg:  # not pending: say where it is, if anywhere
-                where = [s for s in ("approved", "rejected") if _holds(store.load(s)[0], key)]
+            if (
+                " matches 0 documents" in msg
+            ):  # not pending: say where it is, if anywhere
+                where = [
+                    s for s in ("approved", "rejected") if _holds(store.load(s)[0], key)
+                ]
                 if where:
                     msg += f" — it is already in {', '.join(where)}.jsonl"
             errors.append(msg)
@@ -117,18 +124,26 @@ def drop_text(row, texts):
                 if kept.strip(" .,;:"):
                     content = content.replace(s, kept, 1)
                 else:
-                    content = content.replace(" " + s, "", 1) if " " + s in content else content.replace(s, "", 1)
+                    content = (
+                        content.replace(" " + s, "", 1)
+                        if " " + s in content
+                        else content.replace(s, "", 1)
+                    )
                     kept = None
                 for holder in lists:
                     sents = holder.get("added_sentences")
                     if sents and s in sents:
-                        holder["added_sentences"] = [kept if x == s else x for x in sents if x != s or kept]
+                        holder["added_sentences"] = [
+                            kept if x == s else x for x in sents if x != s or kept
+                        ]
         elif prop.get("kind") == "new" and t in content:
             content = re.sub(r"[ \t]{2,}", " ", content.replace(t, "")).strip()
         else:
             unmatched.append(t)
     row["content"] = content
-    prop.setdefault("edited", {}).setdefault("dropped", []).extend(t for t in texts if t not in unmatched)
+    prop.setdefault("edited", {}).setdefault("dropped", []).extend(
+        t for t in texts if t not in unmatched
+    )
     return row, unmatched
 
 
@@ -152,14 +167,23 @@ def finish_edit(old, new):
         raise store.StoreError(f"{old['title']!r}: the edit changes nothing")
     for s in store.STATES:
         if any(r["content_hash"] == new["content_hash"] for r in store.load(s)[0]):
-            raise store.StoreError(f"{old['title']!r}: the edited text is already a version in {s}.jsonl")
+            raise store.StoreError(
+                f"{old['title']!r}: the edited text is already a version in {s}.jsonl"
+            )
     return new
 
 
 def plan(action, row):
     """What store.move will do, for the dry run and the confirmation line."""
     approved, _ = store.load("approved")
-    base = next((r for r in approved if r["doc_id"] == row["doc_id"] and r["content_hash"] != row["content_hash"]), None)
+    base = next(
+        (
+            r
+            for r in approved
+            if r["doc_id"] == row["doc_id"] and r["content_hash"] != row["content_hash"]
+        ),
+        None,
+    )
     prop = proposal_of(row)
     p = {"action": action, "row": row, "base": base, "warnings": []}
     if action == "reject":
@@ -181,26 +205,38 @@ def show(p, indent="  "):
     kind = {
         "approve-new": "APPROVE new document",
         "approve-enrich": "APPROVE enrichment",
-        "to-rejected": "REJECT " + ("enrichment (the approved version stays)" if p["base"] else "document"),
+        "to-rejected": "REJECT "
+        + ("enrichment (the approved version stays)" if p["base"] else "document"),
     }[p["kind"]]
     say(f"{kind}: {row['title']}")
     h = row["content_hash"][:12]
     if base:
         h = f"{base['content_hash'][:12]} -> {h}"
     say(f"{indent}doc_id {row['doc_id']}  hash {h}")
-    say(f"{indent}{row.get('source_class')} · {row.get('period')} · {row.get('company') or row.get('repo') or '-'}")
+    say(
+        f"{indent}{row.get('source_class')} · {row.get('period')} · {row.get('company') or row.get('repo') or '-'}"
+    )
     adds = added_sentences(row) if base else []
     if base and adds:
         say(f"{indent}+{len(adds)} sentence(s):")
         for s in adds:
             say(f"{indent}  + {s}")
     elif base:
-        say(f"{indent}content: {len(base['content'])} -> {len(row['content'])} characters")
+        say(
+            f"{indent}content: {len(base['content'])} -> {len(row['content'])} characters"
+        )
     elif p["action"] == "approve":
         say(f"{indent}{row['content'][:400]}{'…' if len(row['content']) > 400 else ''}")
     edited = proposal_of(row).get("edited")
     if edited:
-        say(f"{indent}edited: " + ("content replaced" if edited.get("content_replaced") else f"dropped {edited['dropped']}"))
+        say(
+            f"{indent}edited: "
+            + (
+                "content replaced"
+                if edited.get("content_replaced")
+                else f"dropped {edited['dropped']}"
+            )
+        )
     for w in p["warnings"]:
         say(f"{indent}warning: {w}")
 
@@ -211,21 +247,34 @@ def show(p, indent="  "):
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("action", choices=("approve", "reject"))
-    ap.add_argument("keys", nargs="+", metavar="KEY", help="doc_id or content_hash (or 8+ char prefix) in pending.jsonl")
+    ap.add_argument(
+        "keys",
+        nargs="+",
+        metavar="KEY",
+        help="doc_id or content_hash (or 8+ char prefix) in pending.jsonl",
+    )
     ap.add_argument("--drop", action="append", default=[], metavar="TEXT")
     ap.add_argument("--edit-content", metavar="FILE")
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--table", help="rehearse the sync against this scratch Neon table")
-    ap.add_argument("--no-sync", action="store_true", help="move only; run evidence-sync.sh yourself")
+    ap.add_argument(
+        "--no-sync",
+        action="store_true",
+        help="move only; run evidence-sync.sh yourself",
+    )
     a = ap.parse_args(argv)
     try:
         if (a.drop or a.edit_content) and a.action != "approve":
             raise store.StoreError("--drop / --edit-content only apply to approve")
         if a.drop and a.edit_content:
-            raise store.StoreError("--drop and --edit-content are two different edits — use one")
+            raise store.StoreError(
+                "--drop and --edit-content are two different edits — use one"
+            )
         rows = resolve_all(a.keys)
         if a.edit_content and len(rows) != 1:
-            raise store.StoreError("--edit-content replaces a whole document's text — name exactly one KEY")
+            raise store.StoreError(
+                "--edit-content replaces a whole document's text — name exactly one KEY"
+            )
 
         edits = {}  # old content_hash -> edited row
         if a.drop:
@@ -243,7 +292,9 @@ def main(argv):
                 )
         if a.edit_content:
             text = open(a.edit_content, encoding="utf-8").read().rstrip("\n")
-            edits[rows[0]["content_hash"]] = finish_edit(rows[0], replace_content(rows[0], text))
+            edits[rows[0]["content_hash"]] = finish_edit(
+                rows[0], replace_content(rows[0], text)
+            )
 
         plans = [plan(a.action, edits.get(r["content_hash"], r)) for r in rows]
         for p in plans:
@@ -260,33 +311,50 @@ def main(argv):
                     edited = edits[r["content_hash"]]
                     store.write(
                         "pending",
-                        [edited if x["content_hash"] == r["content_hash"] else x for x in pending],
+                        [
+                            edited if x["content_hash"] == r["content_hash"] else x
+                            for x in pending
+                        ],
                         sha,
                         reason="review-edit",
                     )
                     r = edited
-                result = store.move(r["doc_id"], "pending", "approved" if a.action == "approve" else "rejected")
+                result = store.move(
+                    r["doc_id"],
+                    "pending",
+                    "approved" if a.action == "approve" else "rejected",
+                )
                 done.append(result)
                 say(
                     f"moved {result['kind']}: {result['title']} ({result['doc_id']})"
-                    + (f"; replaced {result['replaced_hash'][:12]}" if result["replaced_hash"] else "")
+                    + (
+                        f"; replaced {result['replaced_hash'][:12]}"
+                        if result["replaced_hash"]
+                        else ""
+                    )
                 )
         except store.StoreError as e:
             failure = e  # what moved stays moved; sync it, then report
         if done and not a.no_sync:
             say("syncing Neon (scripts/evidence-sync.sh)…")
             sys.stdout.flush()
-            cmd = [os.path.join(HERE, "evidence-sync.sh")] + (["--table", a.table] if a.table else [])
+            cmd = [os.path.join(HERE, "evidence-sync.sh")] + (
+                ["--table", a.table] if a.table else []
+            )
             rc = subprocess.run(cmd).returncode
             if rc:
-                say(f"error: the decision is saved in the state files, but evidence-sync.sh exited {rc} — re-run it")
+                say(
+                    f"error: the decision is saved in the state files, but evidence-sync.sh exited {rc} — re-run it"
+                )
                 return rc
         if failure:
             raise failure
         remaining = [r for r in rows if r["doc_id"] not in {d["doc_id"] for d in done}]
         if remaining:
             raise store.StoreError(f"{len(remaining)} document(s) not moved")
-        say(f"{len(done)} document(s) {'approved' if a.action == 'approve' else 'rejected'}")
+        say(
+            f"{len(done)} document(s) {'approved' if a.action == 'approve' else 'rejected'}"
+        )
         return 0
     except store.Conflict as e:
         print(f"CONFLICT: {e}", file=sys.stderr)

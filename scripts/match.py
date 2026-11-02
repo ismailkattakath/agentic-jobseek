@@ -61,7 +61,9 @@ def main():
     a = ap.parse_args()
     host = (
         os.environ.get("JOBSEEK_NEON_SQL_HOST")
-        or os.environ.get("NEON_SQL_HOST")  # pre-ADR-0007 name, until the cloud env is renamed
+        or os.environ.get(
+            "NEON_SQL_HOST"
+        )  # pre-ADR-0007 name, until the cloud env is renamed
         or sys.exit("error: set JOBSEEK_NEON_SQL_HOST")
     )
     groups = [line.rstrip("\n").split("\t", 1) for line in sys.stdin if line.strip()]

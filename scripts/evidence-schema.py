@@ -66,7 +66,11 @@ def _subset(s, v, path):
             out += _subset(s["items"], x, path + [str(i)])
     if isinstance(v, dict):
         props = s.get("properties", {})
-        out += [f"{where}: {k!r} is a required property" for k in s.get("required", []) if k not in v]
+        out += [
+            f"{where}: {k!r} is a required property"
+            for k in s.get("required", [])
+            if k not in v
+        ]
         for k, x in v.items():
             if k in props:
                 out += _subset(props[k], x, path + [k])
@@ -80,11 +84,17 @@ def errors(doc):
     if _VALIDATOR is not None:
         out = [
             f"{'/'.join(map(str, e.absolute_path)) or 'document'}: {e.message}"
-            for e in sorted(_VALIDATOR.iter_errors(doc), key=lambda e: list(map(str, e.path)))
+            for e in sorted(
+                _VALIDATOR.iter_errors(doc), key=lambda e: list(map(str, e.path))
+            )
         ]
     else:
         out = _subset(SCHEMA, doc, [])
-    c, h = (doc.get("content"), doc.get("content_hash")) if isinstance(doc, dict) else (None, None)
+    c, h = (
+        (doc.get("content"), doc.get("content_hash"))
+        if isinstance(doc, dict)
+        else (None, None)
+    )
     if isinstance(c, str) and isinstance(h, str):
         if hashlib.sha256(c.encode("utf-8")).hexdigest() != h:
             out.append("content_hash: is not sha256(content) — recompute it")

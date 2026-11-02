@@ -21,15 +21,17 @@ if [ -z "$DIR" ]; then
   ROOT="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)" || exit 0
   LINE="$(grep -m1 '^export JOBSEEK_DRIVE_DIR=' "$ROOT/.envrc.local" 2>/dev/null)" || exit 0
   DIR="${LINE#export JOBSEEK_DRIVE_DIR=}"
-  DIR="${DIR#\"}"; DIR="${DIR%\"}"
-  DIR="${DIR#\'}"; DIR="${DIR%\'}"
+  DIR="${DIR#\"}"
+  DIR="${DIR%\"}"
+  DIR="${DIR#\'}"
+  DIR="${DIR%\'}"
 fi
 [ -n "$DIR" ] || exit 0
 
 # Expand a literal $HOME left in the value (the .envrc.local value uses "$HOME/...").
 # shellcheck disable=SC2016  # the literal "$HOME" text is the pattern on purpose
 case "$DIR" in
-  *'$HOME'*) DIR="${DIR//\$HOME/$HOME}" ;;
+*'$HOME'*) DIR="${DIR//\$HOME/$HOME}" ;;
 esac
 
 E="$DIR/evidence"
@@ -41,7 +43,10 @@ REJECTED="$E/rejected.jsonl"
 # Count non-blank lines. grep -c counts a final line with no trailing newline, which
 # wc -l would silently drop.
 count_lines() {
-  [ -f "$1" ] || { echo 0; return; }
+  [ -f "$1" ] || {
+    echo 0
+    return
+  }
   n="$(grep -c . "$1" 2>/dev/null)"
   echo "${n:-0}"
 }
@@ -53,12 +58,17 @@ N_REJECTED="$(count_lines "$REJECTED")"
 to_epoch() {
   local s="$1" e=""
   case "$s" in
-    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*) s="${s%%.*}"; s="${s%Z}"
-      e="$(date -j -u -f '%Y-%m-%dT%H:%M:%S' "$s" +%s 2>/dev/null || date -u -d "$s" +%s 2>/dev/null)" ;;
-    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
-      e="$(date -j -u -f '%Y-%m-%d' "$s" +%s 2>/dev/null || date -u -d "$s" +%s 2>/dev/null)" ;;
-    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9]Z)
-      e="$(date -j -u -f '%Y%m%dT%H%MZ' "$s" +%s 2>/dev/null || date -u -d "${s:0:4}-${s:4:2}-${s:6:2}T${s:9:2}:${s:11:2}:00Z" +%s 2>/dev/null)" ;;
+  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*)
+    s="${s%%.*}"
+    s="${s%Z}"
+    e="$(date -j -u -f '%Y-%m-%dT%H:%M:%S' "$s" +%s 2>/dev/null || date -u -d "$s" +%s 2>/dev/null)"
+    ;;
+  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
+    e="$(date -j -u -f '%Y-%m-%d' "$s" +%s 2>/dev/null || date -u -d "$s" +%s 2>/dev/null)"
+    ;;
+  [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9]Z)
+    e="$(date -j -u -f '%Y%m%dT%H%MZ' "$s" +%s 2>/dev/null || date -u -d "${s:0:4}-${s:4:2}-${s:6:2}T${s:9:2}:${s:11:2}:00Z" +%s 2>/dev/null)"
+    ;;
   esac
   [ -n "$e" ] && echo "$e"
 }
@@ -74,7 +84,7 @@ if [ "$N_PENDING" -gt 0 ] && command -v jq >/dev/null 2>&1; then
   done < <(jq -r '(.metadata.proposal.stamp // .created_at // empty)' "$PENDING" 2>/dev/null)
   if [ -n "$OLDEST_EPOCH" ]; then
     NOW="$(date +%s)"
-    OLDEST_AGE=$(( (NOW - OLDEST_EPOCH) / 86400 ))
+    OLDEST_AGE=$(((NOW - OLDEST_EPOCH) / 86400))
   fi
 fi
 
@@ -82,9 +92,9 @@ fi
 # until_at is ISO-8601 UTC, so a lexicographic sort is a chronological sort.
 LAST_RUN=""
 if command -v jq >/dev/null 2>&1; then
-  LAST_RUN="$(find "$E/inbox" -maxdepth 2 -name 'run-*.json' 2>/dev/null \
-    | while IFS= read -r f; do jq -r '.until_at // empty' "$f" 2>/dev/null; done \
-    | sort | tail -1)"
+  LAST_RUN="$(find "$E/inbox" -maxdepth 2 -name 'run-*.json' 2>/dev/null |
+    while IFS= read -r f; do jq -r '.until_at // empty' "$f" 2>/dev/null; done |
+    sort | tail -1)"
 fi
 
 # Line 1: backlog. Line 2: last discovery run. Output stays two lines.

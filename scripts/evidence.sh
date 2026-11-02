@@ -104,7 +104,8 @@ command -v psql >/dev/null 2>&1 || {
 }
 shas="$(python3 -I "$here/evidence-store.py" sha)"
 sha_of() { printf '%s\n' "$shas" | awk -F'\t' -v s="$1" '$1 == s { print $2 }'; }
-synced=$(psql -X -tA -v a="$(sha_of approved)" -v p="$(sha_of pending)" -v r="$(sha_of rejected)" <<'SQL' 2>/dev/null || echo 0
+synced=$(
+  psql -X -tA -v a="$(sha_of approved)" -v p="$(sha_of pending)" -v r="$(sha_of rejected)" <<'SQL' 2>/dev/null || echo 0
 SELECT count(*) FROM public.evidence_sync
 WHERE (file, sha256) IN (('approved.jsonl', :'a'), ('pending.jsonl', :'p'), ('rejected.jsonl', :'r'));
 SQL

@@ -64,7 +64,11 @@ ORDER = [
     "repo", "period", "skills", "technologies", "domains", "author_confidence", "metadata",
     "created_at", "updated_at",
 ]  # fmt: skip
-TIERS = {"personal": "personal-project", "oss": "oss-contribution", "enterprise": "enterprise"}
+TIERS = {
+    "personal": "personal-project",
+    "oss": "oss-contribution",
+    "enterprise": "enterprise",
+}
 OPERATOR = os.environ.get("JOBSEEK_OPERATOR_HANDLE", "ismail")
 
 
@@ -105,7 +109,10 @@ def path(state):
 
 
 def normalize(doc):
-    return {**{k: doc[k] for k in ORDER if k in doc}, **{k: v for k, v in doc.items() if k not in ORDER}}
+    return {
+        **{k: doc[k] for k in ORDER if k in doc},
+        **{k: v for k, v in doc.items() if k not in ORDER},
+    }
 
 
 def dumps(rows):
@@ -138,7 +145,11 @@ def _check_rows(state, rows):
     """Raise StoreError unless every row validates and the per-file uniqueness holds: content_hash
     in every file, doc_id in approved and pending only — rejected.jsonl is an append-only history
     with several rejected versions per doc_id (ADR § 2.6, § 4)."""
-    bad = [f"{state}.jsonl row {n} ({str(d.get('title'))[:50]}): {m}" for n, d in enumerate(rows, 1) for m in schema.errors(d)]
+    bad = [
+        f"{state}.jsonl row {n} ({str(d.get('title'))[:50]}): {m}"
+        for n, d in enumerate(rows, 1)
+        for m in schema.errors(d)
+    ]
     for key in ("content_hash",) if state == "rejected" else ("doc_id", "content_hash"):
         seen = set()
         for d in rows:
@@ -146,7 +157,9 @@ def _check_rows(state, rows):
                 bad.append(f"{state}.jsonl: duplicate {key} {str(d.get(key))[:16]}")
             seen.add(d.get(key))
     if bad:
-        raise StoreError("refusing to write an invalid file:\n  " + "\n  ".join(bad[:20]))
+        raise StoreError(
+            "refusing to write an invalid file:\n  " + "\n  ".join(bad[:20])
+        )
 
 
 def write(state, rows, expected_sha, reason="write"):
@@ -167,7 +180,9 @@ def write(state, rows, expected_sha, reason="write"):
     backups = os.path.join(root(), "backups")
     os.makedirs(backups, exist_ok=True)
     if current:
-        stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        stamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y%m%dT%H%M%S%fZ"
+        )
         shutil.copy2(p, os.path.join(backups, f"{state}.{stamp}.{reason}.jsonl"))
     tmp = f"{p}.{os.getpid()}.tmp"
     with open(tmp, "wb") as f:
@@ -175,7 +190,9 @@ def write(state, rows, expected_sha, reason="write"):
     live = open(p, "rb").read() if os.path.exists(p) else b""
     if hashlib.sha256(live).hexdigest() != expected_sha:
         os.remove(tmp)
-        raise Conflict(f"{state}.jsonl changed while it was being written — nothing replaced, re-run")
+        raise Conflict(
+            f"{state}.jsonl changed while it was being written — nothing replaced, re-run"
+        )
     os.replace(tmp, p)
     return hashlib.sha256(body).hexdigest()
 
@@ -184,9 +201,15 @@ def _resolve(rows, key, state):
     key = key.strip().lower()
     hit = [r for r in rows if key in (r["doc_id"], r["content_hash"])]
     if not hit and len(key) >= 8:
-        hit = [r for r in rows if r["doc_id"].startswith(key) or r["content_hash"].startswith(key)]
+        hit = [
+            r
+            for r in rows
+            if r["doc_id"].startswith(key) or r["content_hash"].startswith(key)
+        ]
     if len(hit) != 1:
-        raise StoreError(f"{key!r} matches {len(hit)} documents in {state}.jsonl (need exactly 1)")
+        raise StoreError(
+            f"{key!r} matches {len(hit)} documents in {state}.jsonl (need exactly 1)"
+        )
     return hit[0]
 
 
@@ -213,7 +236,11 @@ def move(key, from_state, to_state):
     row = copy.deepcopy(_resolve(src, key, from_state))
     ts = now_iso()
     row["updated_at"] = ts
-    clash = None if to_state == "rejected" else next((r for r in dst if r["doc_id"] == row["doc_id"]), None)
+    clash = (
+        None
+        if to_state == "rejected"
+        else next((r for r in dst if r["doc_id"] == row["doc_id"]), None)
+    )
     if clash and clash["content_hash"] == row["content_hash"]:
         clash = None  # the same version already there: the source copy is just the stale half
     same = next((r for r in dst if r["content_hash"] == row["content_hash"]), None)
@@ -229,7 +256,9 @@ def move(key, from_state, to_state):
         if clash:
             row["created_at"] = clash["created_at"]
     kind = (
-        ("approve-enrich" if clash else "approve-new") if to_state == "approved" else f"to-{to_state}"
+        ("approve-enrich" if clash else "approve-new")
+        if to_state == "approved"
+        else f"to-{to_state}"
     )
     if same:
         out = [row if r is same else r for r in dst]
@@ -263,13 +292,17 @@ def check_invariant(repair=False):
     for s, (rows, _) in loaded.items():
         for n, d in enumerate(rows, 1):
             for m in schema.errors(d):
-                unrepairable.append(f"{s}.jsonl row {n} ({str(d.get('title'))[:50]}): {m}")
+                unrepairable.append(
+                    f"{s}.jsonl row {n} ({str(d.get('title'))[:50]}): {m}"
+                )
         by_id = {}
         for d in rows:
             by_id.setdefault(d.get("doc_id"), []).append(d)
         for doc_id, group in by_id.items():
             if s != "rejected" and len({g.get("content_hash") for g in group}) > 1:
-                unrepairable.append(f"{s}.jsonl: doc_id {doc_id} holds {len(group)} different versions")
+                unrepairable.append(
+                    f"{s}.jsonl: doc_id {doc_id} holds {len(group)} different versions"
+                )
     seen = {}  # content_hash -> state that keeps it
     for s in sorted(STATES, key=DECIDED.get):
         seen_here = set()
@@ -279,7 +312,9 @@ def check_invariant(repair=False):
                 problems.append(f"{s}.jsonl: version {str(h)[:12]} listed twice")
                 drop[s].add(("dup", h))
             elif h in seen:
-                problems.append(f"version {str(h)[:12]} is in {seen[h]} AND {s} — keep {seen[h]}")
+                problems.append(
+                    f"version {str(h)[:12]} is in {seen[h]} AND {s} — keep {seen[h]}"
+                )
                 drop[s].add(("all", h))
             else:
                 seen[h] = s
@@ -298,7 +333,9 @@ def check_invariant(repair=False):
                 emitted.add(h)
                 kept.append(d)
             write(s, kept, file_sha, reason="repair")
-            repaired.append(f"{s}.jsonl: removed {len(rows) - len(kept)} stale copy/copies")
+            repaired.append(
+                f"{s}.jsonl: removed {len(rows) - len(kept)} stale copy/copies"
+            )
     return {
         "ok": not unrepairable and (not problems or bool(repaired)),
         "problems": problems, "repaired": repaired, "unrepairable": unrepairable,
@@ -351,11 +388,17 @@ def _archive(files, bucket, reason=None):
             continue
         target = os.path.join(dest, os.path.basename(f))
         if os.path.exists(target):
-            target += "." + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            target += "." + datetime.datetime.now(datetime.timezone.utc).strftime(
+                "%Y%m%dT%H%M%SZ"
+            )
         shutil.move(f, target)
         moved.append(target)
     if reason and moved:
-        with open(os.path.join(dest, os.path.basename(files[0]) + ".reason.txt"), "w", encoding="utf-8") as f:
+        with open(
+            os.path.join(dest, os.path.basename(files[0]) + ".reason.txt"),
+            "w",
+            encoding="utf-8",
+        ) as f:
             f.write(reason + "\n")
     return moved
 
@@ -369,7 +412,10 @@ def _new_doc(p, draft, stamp, ts):
         meta["agent_assisted"] = True
     meta["proposal"] = _proposal_meta("new", stamp, p)
     if not hasattr(uuid, "uuid7"):
-        raise StoreError("uuid.uuid7() needs Python >= 3.14 (RFC 9562); found " + sys.version.split()[0])
+        raise StoreError(
+            "uuid.uuid7() needs Python >= 3.14 (RFC 9562); found "
+            + sys.version.split()[0]
+        )
     return normalize({
         "doc_id": str(uuid.uuid7()),
         "content_hash": sha(content),
@@ -412,10 +458,18 @@ def _coerce_draft(p, action):
     if isinstance(draft, list):
         sentences = [str(x).strip() for x in draft if str(x).strip()]
     elif isinstance(draft, str) and draft.strip():
-        sentences = [x.strip() for x in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9`(])", draft.strip()) if x.strip()]
+        sentences = [
+            x.strip()
+            for x in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9`(])", draft.strip())
+            if x.strip()
+        ]
     else:
         return draft
-    return {"add_sentences": sentences, "period_end": p.get("period_end"), "commit_refs": p.get("commit_refs") or []}
+    return {
+        "add_sentences": sentences,
+        "period_end": p.get("period_end"),
+        "commit_refs": p.get("commit_refs") or [],
+    }
 
 
 def _sentences(draft, base_content, rejected=()):
@@ -442,10 +496,18 @@ def intake(proposal_path, run_path=None, dry_run=False):
     if run_path is None:
         run_path = os.path.join(
             os.path.dirname(proposal_path),
-            os.path.basename(proposal_path).replace("proposal-", "run-", 1).replace(".jsonl", ".json"),
+            os.path.basename(proposal_path)
+            .replace("proposal-", "run-", 1)
+            .replace(".jsonl", ".json"),
         )
     stamp = _stamp(proposal_path)
-    rep = {"proposal": os.path.basename(proposal_path), "status": "processed", "rows": [], "errors": [], "warnings": []}
+    rep = {
+        "proposal": os.path.basename(proposal_path),
+        "status": "processed",
+        "rows": [],
+        "errors": [],
+        "warnings": [],
+    }
     files = [proposal_path, run_path]
 
     run = {}
@@ -457,7 +519,11 @@ def intake(proposal_path, run_path=None, dry_run=False):
             rep["warnings"].append(f"run file is not JSON ({e})")
     try:
         have = _fp.fingerprint(proposal_path)
-        proposals = [json.loads(line) for line in open(proposal_path, encoding="utf-8") if line.strip()]
+        proposals = [
+            json.loads(line)
+            for line in open(proposal_path, encoding="utf-8")
+            if line.strip()
+        ]
     except (json.JSONDecodeError, OSError) as e:
         have, proposals = None, None
         rep["reason"] = f"proposal is not readable JSONL ({e})"
@@ -473,14 +539,20 @@ def intake(proposal_path, run_path=None, dry_run=False):
             _archive(files, "superseded", rep["reason"])
         return rep
     if not want:
-        rep["warnings"].append("run file records no proposal_sha256; integrity unchecked")
+        rep["warnings"].append(
+            "run file records no proposal_sha256; integrity unchecked"
+        )
 
     approved, _ = load("approved")
     pending, pending_sha = load("pending")
     rejected, _ = load("rejected")
     hashes = {r["content_hash"] for r in approved + pending + rejected}
-    hash_to_doc = {r["content_hash"]: r["doc_id"] for r in approved + pending + rejected}
-    for r in approved + pending + rejected:  # a pre-0007 target_hash may name a superseded version
+    hash_to_doc = {
+        r["content_hash"]: r["doc_id"] for r in approved + pending + rejected
+    }
+    for r in (
+        approved + pending + rejected
+    ):  # a pre-0007 target_hash may name a superseded version
         for e in (r.get("metadata") or {}).get("enrichments", []):
             if e.get("previous_hash"):
                 hash_to_doc.setdefault(e["previous_hash"], r["doc_id"])
@@ -509,27 +581,41 @@ def intake(proposal_path, run_path=None, dry_run=False):
             if action == "new":
                 doc = _new_doc(p, draft, stamp, ts)
                 if doc["content_hash"] in hashes:
-                    out["outcome"] = "duplicate (identical content already in a state file)"
+                    out["outcome"] = (
+                        "duplicate (identical content already in a state file)"
+                    )
                     continue
-                if _norm(doc["content"]) in rej_content:  # § 2.6: a rejected item is never asked about again
+                if (
+                    _norm(doc["content"]) in rej_content
+                ):  # § 2.6: a rejected item is never asked about again
                     out.update(
                         outcome="dropped (content matches a rejected document)",
-                        dropped_as_rejected=[f"{doc['title']} (rejected doc_id {rej_content[_norm(doc['content'])]})"],
+                        dropped_as_rejected=[
+                            f"{doc['title']} (rejected doc_id {rej_content[_norm(doc['content'])]})"
+                        ],
                     )
                     continue
                 pend.append(doc)
                 hashes.add(doc["content_hash"])
-                out.update(outcome="pending: new document", doc_id=doc["doc_id"], content_hash=doc["content_hash"])
+                out.update(
+                    outcome="pending: new document",
+                    doc_id=doc["doc_id"],
+                    content_hash=doc["content_hash"],
+                )
                 changed = True
                 continue
             # enrich: contract = target_doc_id; the pre-0007 routine sent target_hash.
             tid = p.get("target_doc_id") or hash_to_doc.get(p.get("target_hash") or "")
             if not tid:
-                raise StoreError(f"target {p.get('target_doc_id') or p.get('target_hash')!r} is in no state file")
+                raise StoreError(
+                    f"target {p.get('target_doc_id') or p.get('target_hash')!r} is in no state file"
+                )
             pend_by_doc = index_by_doc_id(pend)
             if tid in pend_by_doc:  # § 3.5 — merge into the pending version in place
                 cur = pend_by_doc[tid]
-                add, dropped = _sentences(draft, cur["content"], _rejected_text(rej_by_doc, tid))
+                add, dropped = _sentences(
+                    draft, cur["content"], _rejected_text(rej_by_doc, tid)
+                )
                 if dropped:
                     out["dropped_as_rejected"] = dropped
                 if not add:
@@ -542,31 +628,49 @@ def intake(proposal_path, run_path=None, dry_run=False):
                 new = copy.deepcopy(cur)
                 new["content"] = cur["content"].rstrip() + " " + " ".join(add)
                 new["content_hash"] = sha(new["content"])
-                new["period"] = _extend_period(new.get("period", ""), draft.get("period_end"))
+                new["period"] = _extend_period(
+                    new.get("period", ""), draft.get("period_end")
+                )
                 meta = new.setdefault("metadata", {})
-                meta["commit_refs"] = _union(meta.get("commit_refs"), draft.get("commit_refs"))
+                meta["commit_refs"] = _union(
+                    meta.get("commit_refs"), draft.get("commit_refs")
+                )
                 for k, v in (draft.get("metadata") or {}).items():
                     meta.setdefault(k, v)
                 prop = meta.get("proposal") or _proposal_meta("enrich", stamp, p)
                 prop["sources"] = _union(prop.get("sources"), p.get("sources"))
                 prop["read"] = _union(prop.get("read"), p.get("read"))
                 prop["numbers"] = _union(prop.get("numbers"), p.get("numbers"))
-                prop["removed_in_verify"] = _union(prop.get("removed_in_verify"), p.get("removed_in_verify"))
-                prop["merged"] = prop.get("merged", []) + [{"stamp": stamp, "group": group, "added_sentences": add}]
+                prop["removed_in_verify"] = _union(
+                    prop.get("removed_in_verify"), p.get("removed_in_verify")
+                )
+                prop["merged"] = prop.get("merged", []) + [
+                    {"stamp": stamp, "group": group, "added_sentences": add}
+                ]
                 if dropped:
-                    prop["dropped_as_rejected"] = _union(prop.get("dropped_as_rejected"), dropped)
+                    prop["dropped_as_rejected"] = _union(
+                        prop.get("dropped_as_rejected"), dropped
+                    )
                 meta["proposal"] = prop
                 new["updated_at"] = ts
                 if new["content_hash"] in hashes:
-                    out["outcome"] = "duplicate (merged content already in a state file)"
+                    out["outcome"] = (
+                        "duplicate (merged content already in a state file)"
+                    )
                     continue
                 pend = [new if r is cur else r for r in pend]
                 hashes.add(new["content_hash"])
-                out.update(outcome=f"pending: merged +{len(add)} sentence(s)", doc_id=tid, content_hash=new["content_hash"])
+                out.update(
+                    outcome=f"pending: merged +{len(add)} sentence(s)",
+                    doc_id=tid,
+                    content_hash=new["content_hash"],
+                )
                 changed = True
             elif tid in appr_by_doc:  # § 3.4 — a new version of an approved document
                 base = appr_by_doc[tid]
-                add, dropped = _sentences(draft, base["content"], _rejected_text(rej_by_doc, tid))
+                add, dropped = _sentences(
+                    draft, base["content"], _rejected_text(rej_by_doc, tid)
+                )
                 if dropped:
                     out["dropped_as_rejected"] = dropped
                 if not add:
@@ -579,23 +683,37 @@ def intake(proposal_path, run_path=None, dry_run=False):
                 new = copy.deepcopy(base)
                 new["content"] = base["content"].rstrip() + " " + " ".join(add)
                 new["content_hash"] = sha(new["content"])
-                new["period"] = _extend_period(new.get("period", ""), draft.get("period_end"))
+                new["period"] = _extend_period(
+                    new.get("period", ""), draft.get("period_end")
+                )
                 meta = new.setdefault("metadata", {})
                 meta.pop("proposal", None)
-                meta["commit_refs"] = _union(meta.get("commit_refs"), draft.get("commit_refs"))
+                meta["commit_refs"] = _union(
+                    meta.get("commit_refs"), draft.get("commit_refs")
+                )
                 for k, v in (draft.get("metadata") or {}).items():
                     meta.setdefault(k, v)
                 meta["proposal"] = _proposal_meta(
-                    "enrich", stamp, p, base_hash=base["content_hash"], added_sentences=add,
+                    "enrich",
+                    stamp,
+                    p,
+                    base_hash=base["content_hash"],
+                    added_sentences=add,
                     **({"dropped_as_rejected": dropped} if dropped else {}),
                 )
                 new["updated_at"] = ts
                 if new["content_hash"] in hashes:
-                    out["outcome"] = "duplicate (this version already exists in a state file)"
+                    out["outcome"] = (
+                        "duplicate (this version already exists in a state file)"
+                    )
                     continue
                 pend.append(new)
                 hashes.add(new["content_hash"])
-                out.update(outcome=f"pending: enrichment +{len(add)} sentence(s)", doc_id=tid, content_hash=new["content_hash"])
+                out.update(
+                    outcome=f"pending: enrichment +{len(add)} sentence(s)",
+                    doc_id=tid,
+                    content_hash=new["content_hash"],
+                )
                 changed = True
             elif tid in rej_by_doc:
                 out["outcome"] = "dropped (target document was rejected)"
@@ -603,7 +721,9 @@ def intake(proposal_path, run_path=None, dry_run=False):
                 raise StoreError(f"target doc_id {tid} is in no state file")
         except (StoreError, KeyError) as e:
             out["outcome"] = "error"
-            rep["errors"].append(f"{group}: {e!r}" if isinstance(e, KeyError) else f"{group}: {e}")
+            rep["errors"].append(
+                f"{group}: {e!r}" if isinstance(e, KeyError) else f"{group}: {e}"
+            )
 
     if not rep["errors"] and changed:
         try:
@@ -611,7 +731,9 @@ def intake(proposal_path, run_path=None, dry_run=False):
         except StoreError as e:
             rep["errors"].append(str(e))
     if rep["errors"]:
-        rep["status"] = "error"  # files stay in the inbox; fix the proposal or the code, re-run
+        rep["status"] = (
+            "error"  # files stay in the inbox; fix the proposal or the code, re-run
+        )
         return rep
     if dry_run:
         rep["status"] = "planned"
@@ -632,7 +754,9 @@ def intake_inbox(dry_run=False):
     for name in sorted(os.listdir(inbox)):
         if not (name.startswith("run-") and name.endswith(".json")):
             continue
-        proposal = os.path.join(inbox, "proposal-" + name[len("run-") : -len(".json")] + ".jsonl")
+        proposal = os.path.join(
+            inbox, "proposal-" + name[len("run-") : -len(".json")] + ".jsonl"
+        )
         if os.path.exists(proposal):
             reports.append(intake(proposal, os.path.join(inbox, name), dry_run=dry_run))
     return reports
@@ -647,7 +771,10 @@ def _say(*a):
 
 def _print_intake(reports):
     for r in reports:
-        _say(f"intake {r['proposal']}: {r['status']}" + (f" — {r['reason']}" if r.get("reason") else ""))
+        _say(
+            f"intake {r['proposal']}: {r['status']}"
+            + (f" — {r['reason']}" if r.get("reason") else "")
+        )
         for row in r["rows"]:
             if row.get("outcome") not in (None, "dropped"):
                 _say(f"  {row['group']}: {row['outcome']}")
@@ -667,7 +794,9 @@ def _print_invariant(rep):
     for line in rep["unrepairable"]:
         _say(f"invariant UNREPAIRABLE: {line}")
     if not (rep["problems"] or rep["unrepairable"]):
-        _say("invariant: ok (each version in one file, each doc_id once per approved/pending)")
+        _say(
+            "invariant: ok (each version in one file, each doc_id once per approved/pending)"
+        )
 
 
 def main(argv):
@@ -719,11 +848,18 @@ def main(argv):
                 return 1
             if a.dry_run:
                 return 0
-            loaded = {s: load(s) for s in STATES}  # one read per file: rows and sha agree
+            loaded = {
+                s: load(s) for s in STATES
+            }  # one read per file: rows and sha agree
             with open(a.stage, "w", encoding="utf-8") as f:
                 for s in STATES:
                     for d in loaded[s][0]:
-                        f.write(json.dumps({**normalize(d), "status": s}, ensure_ascii=False) + "\n")
+                        f.write(
+                            json.dumps(
+                                {**normalize(d), "status": s}, ensure_ascii=False
+                            )
+                            + "\n"
+                        )
             with open(a.shas, "w", encoding="utf-8") as f:
                 for s in STATES:
                     f.write(f"{s}\t{loaded[s][1]}\t{len(loaded[s][0])}\n")

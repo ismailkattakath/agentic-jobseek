@@ -69,7 +69,9 @@ def pg_env(uri):
         env["PGPASSWORD"] = unquote(u.password)
     for k, v in parse_qsl(u.query):
         if k not in PG_PARAMS:
-            sys.exit(f"error: connection string parameter {k!r} has no libpq environment variable")
+            sys.exit(
+                f"error: connection string parameter {k!r} has no libpq environment variable"
+            )
         env[PG_PARAMS[k]] = v
     return env
 
@@ -174,7 +176,9 @@ def main():
     sub.add_parser("pgenv")
     a = ap.parse_args()
     if a.cmd == "pgenv":
-        uri = os.environ.get("JOBSEEK_DB_URI") or sys.exit("error: JOBSEEK_DB_URI is not set")
+        uri = os.environ.get("JOBSEEK_DB_URI") or sys.exit(
+            "error: JOBSEEK_DB_URI is not set"
+        )
         for k, v in pg_env(uri).items():
             print(f"export {k}={shlex.quote(v)}")
     elif a.cmd == "query":

@@ -97,12 +97,18 @@ def main():
     src = os.path.join(ev, "career_docs.jsonl")
     qrels_path = os.path.join(ev, "eval", "qrels.jsonl")
     backups = os.path.join(ev, "backups")
-    state = {s: os.path.join(ev, f"{s}.jsonl") for s in ("approved", "pending", "rejected")}
+    state = {
+        s: os.path.join(ev, f"{s}.jsonl") for s in ("approved", "pending", "rejected")
+    }
     if os.path.exists(state["approved"]):
-        sys.exit("error: evidence/approved.jsonl exists — already migrated; refusing to run")
+        sys.exit(
+            "error: evidence/approved.jsonl exists — already migrated; refusing to run"
+        )
     for s in ("pending", "rejected"):
         if os.path.exists(state[s]):
-            sys.exit(f"error: evidence/{s}.jsonl exists without approved.jsonl — inspect by hand")
+            sys.exit(
+                f"error: evidence/{s}.jsonl exists without approved.jsonl — inspect by hand"
+            )
     if not os.path.exists(src):
         sys.exit("error: no evidence/career_docs.jsonl to migrate")
 
@@ -111,7 +117,9 @@ def main():
     docs = read_jsonl(src)
     # Read the backups BEFORE writing one: copy2 keeps the source's mtime, so a fresh backup
     # would otherwise "contain" every hash and hand the no-history documents its mtime.
-    first_seen, backup_files = earliest_backup(backups) if os.path.isdir(backups) else ({}, [])
+    first_seen, backup_files = (
+        earliest_backup(backups) if os.path.isdir(backups) else ({}, [])
+    )
 
     out, mapping, dropped_ids = [], {}, 0
     paths = {"kept": 0, "earliest-backup": 0, "migration-time": 0}
@@ -132,9 +140,18 @@ def main():
             d.setdefault("created_at", ts)
             d.setdefault("updated_at", d["created_at"])
         mapping[d["content_hash"]] = d["doc_id"]
-        out.append({**{k: d[k] for k in ORDER if k in d}, **{k: v for k, v in d.items() if k not in ORDER}})
+        out.append(
+            {
+                **{k: d[k] for k in ORDER if k in d},
+                **{k: v for k, v in d.items() if k not in ORDER},
+            }
+        )
 
-    violations = [(n, d.get("title", "")[:60], m) for n, d in enumerate(out, 1) for m in schema.errors(d)]
+    violations = [
+        (n, d.get("title", "")[:60], m)
+        for n, d in enumerate(out, 1)
+        for m in schema.errors(d)
+    ]
     dup_hash = len(out) - len(mapping)
     dup_id = len(out) - len({d["doc_id"] for d in out})
 
@@ -148,7 +165,9 @@ def main():
         new_qrels.append({"qid": r["qid"], "doc_id": doc_id, "grade": r["grade"]})
 
     print(f"schema engine:             {schema.ENGINE}")
-    print(f"backups scanned:           {len(backup_files)} ({', '.join(map(os.path.basename, backup_files)) or 'none'})")
+    print(
+        f"backups scanned:           {len(backup_files)} ({', '.join(map(os.path.basename, backup_files)) or 'none'})"
+    )
     print(f"documents:                 {len(docs)}")
     print(f"doc_ids minted:            {len(out)} (UUIDv7)")
     print(f"timestamps kept:           {paths['kept']}")
@@ -161,8 +180,12 @@ def main():
     print(f"qrels rows rewritten:      {len(new_qrels)}")
     print(f"qrels rows UNMAPPED:       {len(unmapped)}")
     for r in unmapped:
-        print(f"  unmapped qid={r.get('qid')} grade={r.get('grade')} content_hash={str(r.get('content_hash'))[:16]}…")
-    print(f"schema violations:         {len(violations)} (approved; pending and rejected are empty)")
+        print(
+            f"  unmapped qid={r.get('qid')} grade={r.get('grade')} content_hash={str(r.get('content_hash'))[:16]}…"
+        )
+    print(
+        f"schema violations:         {len(violations)} (approved; pending and rejected are empty)"
+    )
     for n, title, m in violations:
         print(f"  approved line {n} ({title}): {m}")
 
@@ -170,12 +193,18 @@ def main():
     if not a.write:
         print(
             "dry run — nothing written."
-            + (" --write is BLOCKED until every count above marked UNMAPPED/violations/duplicate is 0." if blocked else " Re-run with --write to apply."),
+            + (
+                " --write is BLOCKED until every count above marked UNMAPPED/violations/duplicate is 0."
+                if blocked
+                else " Re-run with --write to apply."
+            ),
             file=sys.stderr,
         )
         return 1 if blocked else 0
     if blocked:
-        sys.exit("error: refusing --write: fix the violations / unmapped qrels above first")
+        sys.exit(
+            "error: refusing --write: fix the violations / unmapped qrels above first"
+        )
 
     os.makedirs(backups, exist_ok=True)
     shutil.copy2(src, os.path.join(backups, f"career_docs.migrate-0007-{stamp}.jsonl"))
@@ -184,7 +213,9 @@ def main():
         os.path.join(backups, f"doc_id-map-{stamp}.jsonl"),
         [{"content_hash": h, "doc_id": i} for h, i in mapping.items()],
     )
-    write_jsonl(state["approved"], out)  # the "already migrated" marker, so it goes first
+    write_jsonl(
+        state["approved"], out
+    )  # the "already migrated" marker, so it goes first
     write_jsonl(state["pending"], [])
     write_jsonl(state["rejected"], [])
     write_jsonl(qrels_path, new_qrels)
@@ -192,7 +223,9 @@ def main():
     if bad:
         for s, n, m in bad:
             print(f"{s}.jsonl:{n}: {m}", file=sys.stderr)
-        sys.exit("error: written files fail validation — career_docs.jsonl left in place; restore from backups")
+        sys.exit(
+            "error: written files fail validation — career_docs.jsonl left in place; restore from backups"
+        )
     os.replace(src, os.path.join(backups, f"career_docs.retired-0007-{stamp}.jsonl"))
     print(
         f"wrote approved.jsonl ({len(out)}), pending.jsonl (0), rejected.jsonl (0), qrels ({len(new_qrels)}); "
