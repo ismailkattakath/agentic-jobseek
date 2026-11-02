@@ -68,6 +68,19 @@ Note the verdict, page count and any disclosed gaps in `status.md`.
 Append every fact-check ruling and every newly verified claim to
 `$JOBSEEK_DRIVE_DIR/evidence/claims.jsonl` (`claim`, `verdict`, `use`, `backing`, `employer`,
 `note`, `decided`, `application`, `content_hash` = sha256 of `claim`; replace the line if the
-same claim was ruled before), then `scripts/claims.sh rebuild`. A `teammate` or `stale` ruling
-against text that is also in the master is a correction for the master, made as its own change
-with a `meta.notes` entry.
+same claim was ruled before), then `scripts/claims.sh rebuild`.
+
+## Step E — correct the master
+
+A `teammate`, `stale` or `narrowed` ruling whose text **also appears in the master**
+(`curl -fsS "$JOBSEEK_MASTER_URL" | grep -F "<text>"`) is a correction for the master, or every
+later tailor starts from the same error.
+
+1. Write `<folder>/master-patch.json` — a one-sentence `reason` and exact-match `edits`
+   (`sub` / `remove`, JSON Pointer paths); the format is in `scripts/master-patch.py --help`.
+2. Dry run: `scripts/master-patch.py "<folder>/master-patch.json"` — fetches the live master,
+   applies the edits, bumps the patch version, validates, and prints the diff. A patch that no
+   longer matches fails; re-derive it.
+3. Show the diff and ask the operator (click-to-select). The master is **public**.
+4. On approval: `scripts/master-patch.py "<folder>/master-patch.json" --publish`. It confirms
+   the new version reads back from the gist.

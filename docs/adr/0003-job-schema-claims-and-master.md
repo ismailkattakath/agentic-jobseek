@@ -42,6 +42,10 @@
 - The master is the published JSON Resume at `$JOBSEEK_MASTER_URL` (the operator's public gist,
   which the email signature, the `jsonresume` CLI default and the jsonresume.org registry also
   read). Drive held a stale second copy (v1.5.0 vs the gist's v1.5.1); it was deleted.
+- Corrections reach it through `scripts/master-patch.py`: a reviewed JSON-Pointer patch with
+  exact-match assertions, a version bump and a `meta.notes` entry, dry-run by default and
+  published only with `--publish` after the operator approves (final pass, Step E). v1.5.2 was
+  the first such correction, made by hand on 2026-11-01.
 - `new-application.sh` fetches the master per application. GitHub's raw CDN caches for a few
   minutes after an edit — a tailor started seconds after a master fix can get the old version.
 

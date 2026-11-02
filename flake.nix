@@ -120,7 +120,7 @@
                 chmod -R u+w gate
                 cd gate
                 shellcheck scripts/*.sh
-                python3 -m py_compile scripts/final-check.py scripts/extract-posting.py
+                python3 -m py_compile scripts/*.py
 
                 mkdir -p fake
                 echo '{"basics":{"name":"Jane Doe"}}' > fake/master.json

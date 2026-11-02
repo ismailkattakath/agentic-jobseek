@@ -77,6 +77,7 @@ scripts/evidence.sh "<claim>" [--scope enterprise] [--full] # the evidence gate'
 scripts/job-validate.py "<folder>/job.json"                 # job schema + completeness gate
 scripts/job-evidence.sh "<folder>" [--scope enterprise]     # one evidence query per requirement
 scripts/claims.sh search "<draft bullet>"                   # past rulings; `rebuild` after edits
+scripts/master-patch.py "<patch.json>" [--publish]          # correct the master: dry run, then publish on approval
 scripts/evidence-rebuild.sh                                 # cache ← Drive JSONL (idempotent)
 scripts/render.sh "<folder>" "<Role Title>"                 # validate + render <Name>-<Role>.pdf
 scripts/final-check.py "<folder>"                           # pre-submit gate (exit 1 = fix first)
