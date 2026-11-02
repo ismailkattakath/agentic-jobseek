@@ -20,6 +20,8 @@ and why the RAG is a cache: `docs/adr/0002-data-and-evidence.md`. The job schema
 ledger, the single master and the theme trial: `docs/adr/0003-job-schema-claims-and-master.md`.
 How retrieval is measured and why it is hybrid: `docs/adr/0004-retrieval-measured.md`.
 The résumé PDF theme — Typst, single column, Material 3, a gated text layer: `docs/adr/0005-own-theme.md`.
+The weekly evidence refresh — a cloud routine proposes, a local step applies, the cache on Neon:
+`docs/adr/0006-periodic-evidence-refresh.md`.
 
 ## Architecture — four stages, one gate
 
