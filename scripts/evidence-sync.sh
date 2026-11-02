@@ -21,9 +21,10 @@
 #   --table NAME      target table (default evidence); its sync table is NAME_sync. Use a scratch
 #                     name to rehearse: scripts/evidence-sync.sh --table evidence_rehearsal
 #   --dry-run         steps 1-2 as a plan only: writes nothing, never touches Neon
-#   --seed-from TBL   one-time ADR-0007 § 9 migration: a version NEW to the table takes its
-#                     vector and embed_spec from TBL (same content_hash) instead of being
-#                     re-embedded. Used once, with TBL = career_docs.
+#   --seed-from TBL   a version NEW to the table takes its vector and embed_spec from TBL
+#                     (a table with content_hash, embedding, embed_spec; same content_hash)
+#                     instead of being re-embedded.
+#                     ADR-0007 § 9 used it once for the migration.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 
@@ -48,7 +49,7 @@ while [ "$#" -gt 0 ]; do
     ;;
   --dry-run) shift ;;
   -h | --help)
-    sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
     ;;
   *)
@@ -128,6 +129,11 @@ CREATE TABLE IF NOT EXISTS :"syn" (
   row_count integer NOT NULL,
   synced_at timestamptz NOT NULL DEFAULT now()
 );
+-- The cloud routine reads through the read-only evidence_reader role (match.py). A table rebuilt
+-- by DROP + CREATE loses its grants, so re-grant on every run (idempotent). Skipped when the role
+-- does not exist (a scratch database).
+SELECT format('GRANT SELECT ON %I, %I TO evidence_reader', :'tbl', :'syn')
+WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'evidence_reader') \gexec
 \set i_hnsw :tbl '_embedding_hnsw'
 \set i_tsv :tbl '_tsv_gin'
 \set i_doc :tbl '_doc_id_idx'

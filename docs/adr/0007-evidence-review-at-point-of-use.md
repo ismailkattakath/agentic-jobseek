@@ -199,8 +199,8 @@ Deviations and follow-ups the builders reported.
 - **Text drift found by the seed:** one document (the "website" portfolio doc) differed:
   `period` was `multi-year (610 commits)` in `career_docs`, `multi-year` in the file. The file
   is newer and wins. 44 timestamps differ (40 backfilled, 4 stamped `now()` by the old rebuild).
-- **Seed is a flag:** `evidence-sync.sh --seed-from career_docs` copies vectors on matching
-  `content_hash`; no separate copy step.
+- **Seed was a flag:** `evidence-sync.sh --seed-from <table>` copies vectors on matching
+  `content_hash`; the one-time seed from `career_docs` is done and that table is gone.
 - **`evidence_sync`** holds each file's sha256; `evidence.sh` self-heals on drift (tested live).
 - **Intake details:** a run file without `proposal_sha256` is accepted with a warning (as
   `evidence-apply.py` did); a mismatch moves both files to `inbox/superseded/` with a reason file.
@@ -219,15 +219,17 @@ Deviations and follow-ups the builders reported.
 - **`claims`:** renamed live; `resume_claims_pkey` renamed to `claims_pkey`; `claims.sh` updated.
 - **Tailor and monitoring:** `job-evidence.sh` passes `--with-pending` (opt out with
   `--approved-only`); `evidence-digest.sh` is wired as a SessionStart hook (about 46 ms).
-- **Cloud side still to do (§ 9.3):** rename the environment variables, routine and environment;
-  update the stored prompt; add the heartbeat host to the allowlist; create the heartbeat check
-  and set `JOBSEEK_HEARTBEAT_URL`; switch to `target_doc_id` and `neighbours[].doc_id`. Until then
-  `match.py` still falls back to `NEON_SQL_HOST`.
-- **Drive:** `evidence/inbox/applied/` keeps its old name until the folder is renamed; the digest
-  reads both.
-- **Open:** `career_docs` is intact and is dropped only after the operator confirms. nix-config's
-  global `CLAUDE.md` line naming `career_docs` (§ 9.4) is not yet changed. Formatting (`shfmt`,
-  `ruff`) was not run by any builder.
+- **Cloud side (§ 9.3), done 2026-11-02:** environment variables, routine and environment are
+  renamed (`JOBSEEK_*`); the heartbeat check exists and pings; real runs now send `target_doc_id`;
+  the OTLP run-stats wiring (§ 5) is live in the cloud environment. `match.py` no longer falls
+  back to `NEON_SQL_HOST`. Intake still maps a legacy `target_hash` (old proposals may exist).
+- **Drive:** `evidence/inbox/applied/` was merged into `processed/` and removed; the digest and
+  the store read `processed/` only, and never count a run in `superseded/` as the last run.
+- **Closed:** `career_docs` was dropped (2026-11-02, after the operator confirmed) and
+  nix-config's global `CLAUDE.md` no longer names it (nix-config #1031). Formatting (`shfmt`,
+  `ruff`) now passes.
+- **Parity, current:** hybrid nDCG@10 **0.711** at 516 approved documents (0.712 at 515; the
+  newest document is unjudged, so no query can find it).
 - **Rejected is history (verification defect, 2026-11-02):** `rejected.jsonl` first kept one row per
   `doc_id`, so rejecting a second enrichment overwrote the first rejection and intake re-admitted
   its sentences. Now rejecting appends, the invariant and `_check_rows` exempt `rejected` from

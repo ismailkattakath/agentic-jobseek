@@ -58,7 +58,12 @@ The master is the published JSON Resume at `$JOBSEEK_MASTER_URL` (read it with `
      `Include` → `scripts/evidence-review.py approve <doc_id> --write`;
      `Reject` → `scripts/evidence-review.py reject <doc_id> --write`;
      `Not for this job` → nothing (leave it out of the résumé);
-     `Edit first` → let the operator edit, then ask again.
+     `Edit first` → ask what to change, then re-ask `Include` on the edited text. Dry-run the edit
+     (omit `--write`; it prints the resulting delta): `scripts/evidence-review.py approve <doc_id>
+     --drop "TEXT"` cuts a clause from the sentences the proposal added (repeatable), and
+     `--edit-content FILE` replaces the whole content with the operator's edited file. On
+     `Include`, run the same command with `--write`: the edit writes a new pending version, then
+     approves it. If they decline, nothing was written.
    - **Never write a pending fact into the résumé without approval.** Until `approve` has
      run, a pending row is a lead, not a backing; an unanswered or declined item is a gap.
 4. **Tailor `<folder>/resume.json`** (`rules/evidence-gate.md` governs every edit):

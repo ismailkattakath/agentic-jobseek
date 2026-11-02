@@ -40,7 +40,7 @@
 | Match | cloud | pre-filter by `repo` (free, structural), then `fastembed` query vector → Neon top-k, hybrid RRF as in ADR-0004 |
 | Draft | cloud | `add-evidence` schema; every line tagged `[measured]` / `[source]` / `[inferred]` |
 | Verify | cloud | adversarial check of each draft against the attached repository |
-| Propose | cloud | `evidence/inbox/<date>.jsonl` + `evidence/watermark.json` in Drive (connector) |
+| Propose | cloud | `evidence/inbox/<date>.jsonl` + `evidence/watermark.json` in Drive (connector; superseded by `until_at` in `run-<stamp>.json`, ADR-0007 § 3) |
 | Apply | local, operator present | approve → JSONL → `evidence-rebuild.sh` → `retrieval-eval.py score` after a large batch |
 
 **Watermark, not "last 7 days":** a run can be late or skipped; the next run starts from the
@@ -86,7 +86,7 @@ the vectors Ollama's `nomic-embed-text` (F16, 768-d) produced: cosine **min 0.99
 measurements and the 0.94 threshold carry over without a re-embed.
 
 **Neon Free fits:** text 1.56 MB + 514 × 768-d vectors ≈ 1.6 MB + index, under 10 MB against
-0.5 GB per project; a weekly run of minutes against 100 CU-hours a month; no inactivity pause.
+0.5 GB per project (now 1 GB per project, neon.com/pricing); a weekly run of minutes against 100 CU-hours a month; no inactivity pause.
 
 ## 4b. Second proof run, 2026-11-02 — the Match step's dependencies
 
@@ -105,7 +105,7 @@ managers + `huggingface.co`, `*.huggingface.co`, `*.hf.co`; a setup script that 
 
 **Consequences.** The snapshot expires after about 7 days, so a weekly run usually re-runs
 setup (~3 min, free). A silently missed schedule is real: the routine appends one line per run
-to `evidence/runs.jsonl` in Drive (date, sources read, proposals written), and the watermark
+to `evidence/runs.jsonl` in Drive (date, sources read, proposals written; superseded by `run-<stamp>.json` with `until_at`, ADR-0007 § 3), and the watermark
 makes a missed week a late week, not a lost one. "Succeeded" on the History row means only
 that the session ended cleanly; the run log carries the truth.
 
@@ -117,7 +117,7 @@ that the session ended cleanly; the run log carries the truth.
 | `scripts/embed.py` (POST /api/embeddings, as the retired `embed()`) vs `embed()` | cosine 1.0 |
 | Full rebuild from the JSONL into a scratch table, embedding on the client | 514 rows in 26 s, every vector cosine 1.0 against the stored ones |
 | `claims.sh` search, old (local) vs new (Neon) | identical rows |
-| **Hybrid search quality, 55 graded queries, the production SQL** | local **0.727** nDCG@10, Neon **0.722**; Δ −0.0045, 95% CI [−0.0097, −0.0003], 5 wins / 9 losses / 41 ties |
+| **Hybrid search quality, 55 graded queries, the production SQL** | local **0.727** nDCG@10, Neon **0.722** (stale figure; see ADR-0007 § 10); Δ −0.0045, 95% CI [−0.0097, −0.0003], 5 wins / 9 losses / 41 ties |
 | HNSW index vs exact scan | the same numbers on both sides — the index is not the cause |
 
 **Why Neon ranks 0.0045 lower:** its keyword index tokenizes differently. Neon runs PostgreSQL 18
@@ -179,5 +179,5 @@ document's nearest neighbour scored 0.66 — a threshold near 0.67 would have ag
 reviewer on all 12, but twelve pairs are too few to fix it; the routine keeps choosing by reading
 the neighbours, and the pairs accumulate in `inbox/applied/`.
 
-**Still open:** drafts rest on PR titles and bodies, not diffs; a scheduled `run_once_at` did not
+**Still open:** drafts rest on PR titles and bodies, not diffs (superseded: § 4d reads patches); a scheduled `run_once_at` did not
 fire once (the weekly cron is unproven until its first Monday).

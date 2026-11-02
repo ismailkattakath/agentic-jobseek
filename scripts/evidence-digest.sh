@@ -88,11 +88,12 @@ if [ "$N_PENDING" -gt 0 ] && command -v jq >/dev/null 2>&1; then
   fi
 fi
 
-# Newest discovery run: the largest until_at across run-*.json in the inbox folders.
-# until_at is ISO-8601 UTC, so a lexicographic sort is a chronological sort.
+# Newest discovery run: the largest until_at across run-*.json waiting in inbox/ or taken in
+# to inbox/processed/. inbox/superseded/ is skipped: a refused run must not count as the last
+# run. until_at is ISO-8601 UTC, so a lexicographic sort is a chronological sort.
 LAST_RUN=""
 if command -v jq >/dev/null 2>&1; then
-  LAST_RUN="$(find "$E/inbox" -maxdepth 2 -name 'run-*.json' 2>/dev/null |
+  LAST_RUN="$(find "$E/inbox" -maxdepth 2 -name 'run-*.json' -not -path '*/superseded/*' 2>/dev/null |
     while IFS= read -r f; do jq -r '.until_at // empty' "$f" 2>/dev/null; done |
     sort | tail -1)"
 fi

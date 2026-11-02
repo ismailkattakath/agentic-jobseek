@@ -66,6 +66,14 @@ each script under `secret exec`, so the password is never exported. Embeddings a
 client — `scripts/embed.py` (Ollama) here, fastembed in the cloud routine; hybrid search is the one
 file `scripts/sql/evidence-search.sql`.
 
+`.claude/settings.json` auto-allows `Bash(scripts/evidence.sh *)` so search stays frictionless.
+That allow is **wider than a read**: when the drift gate finds the Drive files differ from
+`evidence_sync`, `evidence.sh` runs `evidence-sync.sh` first, which **writes Neon** (mirror,
+embeddings, `evidence_sync`) and pushes store gauges to Grafana Cloud. Kept on purpose, since the
+sync is idempotent, derives only from the Drive files and takes seconds; `evidence-sync.sh`,
+`evidence-review.py` and `evidence-store.py` are not allowed and still prompt. (JSON cannot carry
+comments, so this paragraph is the settings comment.)
+
 ## Where things live in the repo
 
 | Path | Owns |

@@ -13,9 +13,7 @@ neighbours are VERSIONS, so a pending enrichment and its approved base can share
 Vectors never pass through the model: the query goes straight to Neon's HTTPS SQL endpoint
 (https://$JOBSEEK_NEON_SQL_HOST/sql) as the read-only `evidence_reader` role. In the cloud the
 environment's network secret adds that role's `Neon-Connection-String` header; locally, set
-NEON_CONNECTION_STRING (e.g. `secret exec NEON_CONNECTION_STRING=<item> -- …`). The host variable
-was NEON_SQL_HOST until ADR-0007 § 6; that name is still read as a fallback until the cloud
-environment is renamed.
+NEON_CONNECTION_STRING (e.g. `secret exec NEON_CONNECTION_STRING=<item> -- …`).
 """
 
 import argparse
@@ -59,12 +57,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--k", type=int, default=3)
     a = ap.parse_args()
-    host = (
-        os.environ.get("JOBSEEK_NEON_SQL_HOST")
-        or os.environ.get(
-            "NEON_SQL_HOST"
-        )  # pre-ADR-0007 name, until the cloud env is renamed
-        or sys.exit("error: set JOBSEEK_NEON_SQL_HOST")
+    host = os.environ.get("JOBSEEK_NEON_SQL_HOST") or sys.exit(
+        "error: set JOBSEEK_NEON_SQL_HOST"
     )
     groups = [line.rstrip("\n").split("\t", 1) for line in sys.stdin if line.strip()]
     if any(len(g) != 2 for g in groups):

@@ -547,12 +547,13 @@ def intake(proposal_path, run_path=None, dry_run=False):
     pending, pending_sha = load("pending")
     rejected, _ = load("rejected")
     hashes = {r["content_hash"] for r in approved + pending + rejected}
+    # LEGACY: resolves a pre-0007 proposal's target_hash to a doc_id (see the enrich branch below).
     hash_to_doc = {
         r["content_hash"]: r["doc_id"] for r in approved + pending + rejected
     }
     for r in (
         approved + pending + rejected
-    ):  # a pre-0007 target_hash may name a superseded version
+    ):  # LEGACY: a pre-0007 target_hash may name a superseded version
         for e in (r.get("metadata") or {}).get("enrichments", []):
             if e.get("previous_hash"):
                 hash_to_doc.setdefault(e["previous_hash"], r["doc_id"])
@@ -604,7 +605,9 @@ def intake(proposal_path, run_path=None, dry_run=False):
                 )
                 changed = True
                 continue
-            # enrich: contract = target_doc_id; the pre-0007 routine sent target_hash.
+            # enrich: contract = target_doc_id. LEGACY: the pre-0007 routine sent target_hash;
+            # kept only for proposals written before the cloud routine was renamed (2026-11-02).
+            # Drop the target_hash fallback (and the previous_hash mapping above) once none remain.
             tid = p.get("target_doc_id") or hash_to_doc.get(p.get("target_hash") or "")
             if not tid:
                 raise StoreError(
