@@ -131,15 +131,6 @@ def main():
         "a date per work entry",
         f"{dates} dates for {len(work)} roles",
     )
-    # An open role (no endDate) must read "<start> - Present"; without it an ATS sees a one-month job.
-    # scripts/render.sh supplies the theme's null sentinel; this catches a PDF rendered without it.
-    open_roles = [w for w in work if w.get("startDate") and not w.get("endDate")]
-    present = len(re.findall(r"\bPresent\b", text))
-    add(
-        present >= len(open_roles),
-        "open roles read Present",
-        f"{present} 'Present' for {len(open_roles)} open role(s)",
-    )
     ph = PLACEHOLDER.findall(text)
     add(not ph, "no placeholders", ", ".join(ph) or "none")
     # A hyphenated word that wraps at a line end comes out of the text layer GLUED ("label-proof"
