@@ -27,6 +27,15 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import importlib.util  # noqa: E402
+
+_spec = importlib.util.spec_from_file_location(
+    "proposal_fingerprint", os.path.join(HERE, "proposal-fingerprint.py")
+)
+_fp = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_fp)
+fingerprint = _fp.fingerprint
 TIERS = {
     "personal": "personal-project",
     "oss": "oss-contribution",
@@ -66,6 +75,29 @@ def main():
         "error: set JOBSEEK_DRIVE_DIR"
     )
     src = os.path.join(data, "evidence", "career_docs.jsonl")
+    # The routine records the content fingerprint of the proposal it COMPUTED
+    # (scripts/proposal-fingerprint.py); the copy in Drive went through a connector the model
+    # fills in, so a mismatch means a value changed on the way.
+    run_file = os.path.join(
+        os.path.dirname(a.proposal),
+        os.path.basename(a.proposal)
+        .replace("proposal-", "run-")
+        .replace(".jsonl", ".json"),
+    )
+    want = (
+        json.load(open(run_file, encoding="utf-8")) if os.path.exists(run_file) else {}
+    ).get("proposal_sha256")
+    have = fingerprint(a.proposal)
+    if want and want != have:
+        sys.exit(
+            f"error: {os.path.basename(a.proposal)} is not the file the routine computed "
+            f"(run file sha256 {want[:12]}…, this file {have[:12]}…) — re-run the routine, never apply a retyped copy"
+        )
+    if not want:
+        print(
+            "warning: the run file records no proposal_sha256 (written before 2026-11-02); integrity unchecked",
+            file=sys.stderr,
+        )
     proposals = [
         json.loads(line) for line in open(a.proposal, encoding="utf-8") if line.strip()
     ]

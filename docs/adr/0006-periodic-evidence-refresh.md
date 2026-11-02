@@ -136,6 +136,16 @@ tailoring runs — instead of re-implementing it: the old copy reported 0.703 wh
 through Neon's pooler: the pooler's transaction mode drops temp tables between transactions and
 carried a dump's `search_path` into the next client.
 
+## 4d. Run-log review, 2026-11-02 — three fixes before the first real week
+
+Re-reading every run log found two weaknesses the dry runs had not surfaced:
+
+| Found | Evidence | Fix |
+|---|---|---|
+| The proposal reaching Drive is retyped by the model | dry run 3 computed a 28,920-byte proposal; the Drive copy was 23,913 bytes — every skip's neighbours dropped on the way | the run records `scripts/proposal-fingerprint.py` (a content hash) in its run file; `evidence-apply.py` refuses a proposal whose fingerprint differs (whitespace-tolerant, value-strict) |
+| Groups skipped as "titles only" | 5 of 8 skip reasons said so, though the search had returned each PR body | step 6 reads every full PR body, and the diff of each PR in an attached repository, before any draft or skip; a skip names what was read |
+| Numbers drafted from PR text alone | every run reported "bodies, not diffs" | every number in a draft is listed with its exact source (body, diff path, commit); a number without one is deleted. The routine now attaches the repositories most work lands in, so their diffs are readable over REST |
+
 ## 5. Rejected
 
 | Option | Why it lost |
