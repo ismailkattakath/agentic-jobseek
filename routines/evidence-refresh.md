@@ -49,12 +49,15 @@ three settings is ignored.
 
 ## Steps
 
-1. **Window.** List `JOBSEEK_INBOX_FOLDER_ID` with the Drive connector. `since` is the fire text's
-   value, else the `until` of the newest `run-*.json` in that folder or its `applied/` subfolder
-   (the apply step moves files there), else 7 days ago. `until` is the fire text's
-   value, else today. Dates are UTC.
+1. **Window — UTC timestamps, never bare dates.** List `JOBSEEK_INBOX_FOLDER_ID` and its
+   `applied/` subfolder with the Drive connector (the apply step moves files there). `since` is
+   the fire text's value, else the `until_at` of the newest `run-*.json`, else 7 days before
+   now. `until_at` is the fire text's `until`, else this run's start time
+   (`date -u +%Y-%m-%dT%H:%M:%SZ`). Name this run's files with `<stamp>` = `until_at` as
+   `YYYYMMDDTHHMMZ`, so two runs on one day never collide.
 2. **Discover — GitHub.** Page through
-   `gh api 'search/issues?q=author:$EVIDENCE_GITHUB_AUTHOR+is:pr+is:merged+merged:<since>..<until>&per_page=100&page=N'`
+   `gh api 'search/issues?q=author:$EVIDENCE_GITHUB_AUTHOR+is:pr+is:merged+merged:<since>..<until_at>&per_page=100&page=N'`
+   (full ISO timestamps, e.g. `merged:2026-11-02T13:31:28Z..2026-11-09T14:00:05Z`)
    until a page returns fewer than 100 items (the API stops at 1,000 results; if `total_count`
    exceeds that, split the window by week). Keep repo, number, title, URL, merge date and the
    first 1,500 characters of the body.
@@ -88,10 +91,11 @@ three settings is ignored.
    trace; downgrade anything only partly supported to `[inferred]`. Record what you removed.
 8. **Write.** Create two files in `JOBSEEK_INBOX_FOLDER_ID` with the Drive connector (plain text,
    no conversion):
-   - `proposal-<until>.jsonl` — one JSON object per group:
+   - `proposal-<stamp>.jsonl` — one JSON object per group (skip the file when there is none):
      `{"group", "action", "target_hash", "neighbours": [{"content_hash", "title", "cosine"}],
        "claim", "draft", "sources": [urls or SHAs], "removed_in_verify": [...]}`
-   - `run-<until>.json` — `{"since", "until", "github_prs", "gitlab_commits", "groups",
+   - `run-<stamp>.json` — `{"since", "until_at", "github_prs", "gitlab_commits", "groups",
      "dropped_chores", "proposals": {"enrich", "new", "skip"}, "errors": [...]}`.
-   Write the run file even when a step failed — it is the record that the run happened.
+   **Always write the run file** — with nothing to propose, and when a step failed. It is the
+   record that the run happened and the next run's watermark; a run without one is invisible.
 9. **Report.** End with five lines: window, counts, files written, errors.
