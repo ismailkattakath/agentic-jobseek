@@ -1,6 +1,7 @@
 # ADR-0002 — Data in Drive, evidence as a rebuildable cache
 
-**Status:** accepted, 2026-11-01
+**Status:** accepted, 2026-11-01. Superseded in part by ADR-0006: the cache moves to Neon and the
+in-database `embed()` goes away; the JSONL stays the source.
 
 ## Decision
 

@@ -1,7 +1,8 @@
 # ADR-0006 — Periodic evidence refresh: a cloud routine proposes, a local step applies
 
 **Status:** accepted, 2026-11-02. Decided on a cloud proof run and an embedding-parity test
-(§ 4); not yet built. Next: a one-week dry run (§ 6).
+(§ 4); not yet built. Next: a second proof run for what § 4b lists, then a one-week dry run
+(§ 6).
 
 ## 1. Decision
 
@@ -16,11 +17,19 @@
    Dry run → approve → apply, the same shape as `master-patch.py`.
 4. **The vector cache moves to Neon (Free plan); embeddings stay nomic-embed-text, computed by
    the client.** Local scripts embed with Ollama; the cloud run embeds with `fastembed`
-   (`nomic-ai/nomic-embed-text-v1.5`). Neon stores vectors only. The local pgvector table
-   retires, so there is still one cache (ADR-0002 still holds: the JSONL is the source).
-5. **Enrich is the default, a new doc the exception.** A group whose nearest document scores
-   ≥ 0.94 (the `evidence-dups.sh` threshold) becomes an update to that document: extended
-   `period`, appended `commit_refs`, new facts, a fresh `content_hash`.
+   (`nomic-ai/nomic-embed-text-v1.5`). **Neon holds text and vectors**: hybrid search needs the
+   full-text half (ADR-0004's `tsvector` over title + content), so the evidence text sits in
+   Neon as well as in Drive. It stays a derived cache — rebuilt from the JSONL, holding no fact
+   of its own — but it is a copy of the text outside Google, accepted for this job. The local
+   pgvector table retires, so there is still one cache. ADR-0002 is superseded in part: the
+   in-database `embed()` over pgsql-http to a local Ollama goes away; scripts send vectors.
+5. **Enrich is the default, a new doc the exception.** A group whose nearest document is
+   close enough becomes an update to that document: extended `period`, appended `commit_refs`,
+   new facts, a fresh `content_hash`. **The cut is an output of the dry run, not an input.**
+   `evidence-dups.sh`'s 0.94 measured doc against near-duplicate doc; a week's new facts about
+   a known subsystem will score lower, so borrowing it would route most enrichments to *new*.
+   The dry run records each group's nearest-doc score and the operator's enrich/new verdict,
+   and the cut is chosen from those pairs.
 
 ## 2. Pipeline
 
@@ -28,7 +37,7 @@
 |---|---|---|
 | Discover | cloud | REST `search/issues?q=author:<handle>+is:pr+is:merged+merged:>=<watermark>` across all repos; GitLab through the claude.ai GitLab connector |
 | Group | cloud | by repo + subsystem — "ten commits on one feature = one entry" |
-| Match | cloud | `fastembed` query vector → Neon top-k (hybrid RRF as in ADR-0004) |
+| Match | cloud | pre-filter by `repo` (free, structural), then `fastembed` query vector → Neon top-k, hybrid RRF as in ADR-0004 |
 | Draft | cloud | `add-evidence` schema; every line tagged `[measured]` / `[source]` / `[inferred]` |
 | Verify | cloud | adversarial check of each draft against the attached repository |
 | Propose | cloud | `evidence/inbox/<date>.jsonl` + `evidence/watermark.json` in Drive (connector) |
@@ -39,7 +48,9 @@ last processed merge date per source.
 
 ## 3. Rules the routine follows
 
-- **Sources:** everything the operator's GitHub and GitLab identities can see. Evidence from
+- **Sources:** GitHub through the session's one credential, the primary account; the GitHub
+  proxy substitutes that account and no other. The alternate persona through the claude.ai
+  GitLab connector. A second GitHub account would need its own path (§ 4b). Evidence from
   the alternate persona carries `metadata.persona: "alt"`; tailoring never prints that handle,
   its repository names or its URLs in anything public.
 - **Attribution:** commits an agent executed under the operator's direction are the
@@ -77,6 +88,19 @@ measurements and the 0.94 threshold carry over without a re-embed.
 **Neon Free fits:** text 1.56 MB + 514 × 768-d vectors ≈ 1.6 MB + index, under 10 MB against
 0.5 GB per project; a weekly run of minutes against 100 CU-hours a month; no inactivity pause.
 
+## 4b. Not yet measured — the second proof run's checklist
+
+The first proof run did not exercise the Match step's dependencies:
+
+- **Neon from a cloud run.** `console.neon.tech` answered 401 over HTTP; untested are the Neon
+  connector's SQL tool accepting a 768-float vector literal, and Postgres wire protocol (5432)
+  from the sandbox — the allowlist covers HTTP hosts, and network secrets attach only to HTTP.
+- **The model download.** `huggingface.co` is not on the default allowlist. The routine needs
+  its own environment with that host allowed, and the model fetched in the **setup script**,
+  whose result is cached per environment, so a run does not re-download about 550 MB.
+- **The GitLab connector.** Which account it is signed in as, and whether it lists that
+  account's merge requests.
+
 ## 5. Rejected
 
 | Option | Why it lost |
@@ -84,7 +108,7 @@ measurements and the 0.94 threshold carry over without a re-embed.
 | bragdoc CLI (MIT, 27★) | own cache and schedule, cloud sync by default, export format and author attribution undocumented, no GitLab — a second store |
 | brag-skill, bragbot, Git Brag, brag-ai | 2–8★; produce documents, not records |
 | awesome-copilot `brag-sheet` as the engine | prompt text, not a tool — its rules are adopted (§ 3), not the skill |
-| Desktop local scheduled task (nix-config ADR-010, lane 1) | needs the Mac awake and the app open; every resource the job needs is reachable from the cloud (§ 4) |
+| Desktop local scheduled task (nix-config ADR-010, lane 1) | needs the Mac awake and the app open; GitHub, Drive and PyPI are proven reachable from the cloud (§ 4), the rest is § 4b |
 | Attach every source repository | each is cloned on every run; REST search finds the work without it |
 | Neon AI Gateway embeddings | not on the Free plan; a new model would void ADR-0004 |
 | Supabase | Free projects pause after 7 days of low activity — the weekly cadence's edge |
