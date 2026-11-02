@@ -16,10 +16,13 @@ worth repeating on every application:
 
 ```bash
 scripts/render.sh "$JOBSEEK_DRIVE_DIR/applications/<company>/<role>" "<Role Title>"
-scripts/final-check.py "$JOBSEEK_DRIVE_DIR/applications/<company>/<role>"       # --max-pages N to override 2
+scripts/final-check.py "$JOBSEEK_DRIVE_DIR/applications/<company>/<role>" --title "<posting job title>"
 ```
 
-Exit 1 = fix and re-render first. A page-count WARN is a judgement call: say
+Exit 1 = fix and re-render first. A hyphen-glued word (a hyphen that wrapped at a line end comes
+out of the text layer joined, so the keyword stops matching) is fixed by rewording or reordering
+so it no longer lands at a line end. Measured 2026-11-01: fixing the title, glued words, the
+naive-parse email and length took Jobscan from 22% to 64% on the same content. A page-count WARN is a judgement call: say
 so in the summary rather than cutting real evidence to hit it.
 
 ## Step B — three reviews, launched in parallel (one message, three Agent calls)
