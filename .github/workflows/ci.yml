@@ -1,0 +1,52 @@
+name: ci
+
+# ONE required check: `gate` (shared landing system, kattakath/.github@3d5ad5b9e04c853dbb0d82446255c9ef9230332a).
+# `gate` always runs and asserts each job it needs ended EXACTLY as this event expects:
+# `success` where it should run, `skipped` where it should not. The heavy scan runs once:
+# in the merge queue when the repo variable QUEUE_ENABLED is 'true', otherwise on the PR.
+# Fork PRs always run it on the PR. Why an aggregator: a skipped job reports Success, so a
+# skippable job must never BE the required check (GitHub docs; see kattakath/.github README).
+
+on:
+  pull_request:
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # Supersede stale PR runs; never cancel a queue run (the queue would eject the PR).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read            # no secrets in CI: merge_group runs fork code in base-repo context
+
+jobs:
+  gate:
+    if: ${{ !cancelled() }}
+    needs: [gitleaks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      # `expect` holds a deliberate SECOND copy of gitleaks's `if:`. If the two drift, gate goes red.
+      - uses: kattakath/.github/actions/gate@3d5ad5b9e04c853dbb0d82446255c9ef9230332a
+        with:
+          needs: ${{ toJSON(needs) }}
+          expect: >-
+            {"gitleaks": ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true' }}}
+
+  # Folded from no-data.yml (its push trigger stays there). Mechanical floor for
+  # .claude/rules/no-data-here.md: secrets plus personal-data shapes, over the WHOLE history
+  # (a value one commit adds and a later one removes still leaks).
+  gitleaks:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: gitleaks over all history
+        run: >
+          docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.30.1
+          git --no-banner --redact --config .gitleaks.toml .
