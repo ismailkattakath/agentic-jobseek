@@ -150,12 +150,23 @@ carried a dump's `search_path` into the next client.
 | Local pgvector kept as the cache | the cloud run cannot reach it, so matching could not happen before the proposal |
 | SemDeDup-style clustering | built for millions of documents; at 514, hash + cosine pairs suffice |
 
-## 6. Weakest assumption
+## 6. Dry runs, 2026-11-02 — the grain question settled
 
-That grouping by subsystem gives documents at the right grain. **Settle it** with a one-week
-dry run: count proposed *new* against *enrich*. A week holds ≥ 204 merged PRs; if most become
-new documents, the grain is wrong.
+Three Run-now passes over 2026-10-26..11-02 (209 merged PRs, 42 GitLab commits):
 
-Also open: the commit author name used in client repositories — `git log --author` matched
-only 2 of a week's commits in one shallow clone, so discovery keys on the PR author handle,
-not commit metadata.
+| Run | What went wrong | Fix |
+|---|---|---|
+| 1 | Match skipped (17 KB statements), hashes cut to 10 characters, GitLab unauthorised | vector referenced once; full hashes required; connector re-authorised |
+| 2 | 5 of 8 groups matched: every 7 KB vector was retyped by the model into a connector call | `scripts/match.py` — Bash embeds and queries Neon over HTTPS as a read-only role through a network secret; no vector passes through the model |
+| 3 | none | 20 groups → **11 enrich, 1 new, 8 skip**; 7 chores and 15 persona-operations commits dropped |
+
+**Grain: right.** 251 items became 12 changes, not 251 documents. The operator approved all 12
+(one clause cut in review) and `scripts/evidence-apply.py` applied them: 514 → 515 documents,
+11 enriched with their previous hashes recorded, 5 graded judgments carried to the new hashes.
+**Enrich cut:** every enrich chose its top neighbour at cosine 0.68–0.82, and the one new
+document's nearest neighbour scored 0.66 — a threshold near 0.67 would have agreed with the
+reviewer on all 12, but twelve pairs are too few to fix it; the routine keeps choosing by reading
+the neighbours, and the pairs accumulate in `inbox/applied/`.
+
+**Still open:** drafts rest on PR titles and bodies, not diffs; a scheduled `run_once_at` did not
+fire once (the weekly cron is unproven until its first Monday).

@@ -4,7 +4,9 @@ The weekly evidence refresh (docs/adr/0006) runs as a Claude cloud scheduled tas
 is one line: *follow `routines/evidence-refresh.md`*. This file is that procedure. It holds no
 identifier, handle or path: every one of those arrives through the cloud environment's variables.
 
-**You propose; you never decide.** Nothing here writes `career_docs.jsonl`, the Neon cache, or
+**You propose; you never decide.** The operator reviews the proposal and applies the approved
+groups locally with `scripts/evidence-apply.py` (it backs up the source, rewrites it, carries
+graded judgments to enriched documents' new hashes, and rebuilds the cache). Nothing here writes `career_docs.jsonl`, the Neon cache, or
 any repository. The output is a proposal file that the operator reviews and applies locally.
 
 ## Inputs
@@ -74,7 +76,10 @@ three settings is ignored.
    - `enrich` — the group adds facts to an existing document (same system, same work): give its
      full 64-character `content_hash` (the apply step matches on it), the sentences to add, the new `period` end, and the `commit_refs` to append;
    - `new` — no existing document covers it: a full line in the `add-evidence` skill's schema
-     (`.claude/skills/add-evidence/SKILL.md`), `content_hash` left empty for the apply step;
+     (`.claude/skills/add-evidence/SKILL.md`) with every field — `title`, `content`, `doc_type`,
+     `source_class` (`enterprise` · `personal-project` · `oss-contribution`), `company`, `repo`,
+     `period`, `skills`, `technologies`, `domains`, `author_confidence`, `metadata` — and
+     `content_hash` left empty for the apply step;
    - `skip` — nothing evidence-worthy (say why).
    Choose by reading the neighbours, not by a score cut-off; the cut is what this dry period
    measures (ADR-0006 § 1.5).
