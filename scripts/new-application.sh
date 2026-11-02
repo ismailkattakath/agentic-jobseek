@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # new-application.sh <company> <role>
 # Scaffold $JOBSEEK_DRIVE_DIR/applications/<company-slug>/<role-slug>/ from this repo's
-# templates/application/ + the master $JOBSEEK_DRIVE_DIR/base/resume.json, substituting
+# templates/application/ + the master résumé fetched from $JOBSEEK_MASTER_URL, substituting
 # {{COMPANY}} / {{ROLE}} / {{DATE}} in the template docs. The folder lands in Drive, never
 # in this repo (.claude/rules/no-data-here.md).
 set -euo pipefail
@@ -43,11 +43,8 @@ if [ -z "$cslug" ] || [ -z "$rslug" ]; then
   exit 1
 fi
 
-master="$data/base/resume.json"
-[ -f "$master" ] || {
-  echo "error: no master resume at base/resume.json under JOBSEEK_DRIVE_DIR" >&2
-  exit 1
-}
+# The master lives at ONE published URL (the operator's JSON Resume); Drive never holds a copy.
+master_url="${JOBSEEK_MASTER_URL:?set JOBSEEK_MASTER_URL to the master JSON Resume URL (see .envrc)}"
 
 rel="applications/$cslug/$rslug"
 dir="$data/$rel"
@@ -72,8 +69,8 @@ for f in "$templates"/*; do
     "$f" >"$dir/$name"
 done
 
-# The tailored resume starts as a copy of the master.
-cp "$master" "$dir/resume.json"
+# The tailored resume starts as a fresh copy of the master.
+curl -fsS "$master_url" -o "$dir/resume.json"
 
 echo "created \$JOBSEEK_DRIVE_DIR/$rel/"
 echo "next:"

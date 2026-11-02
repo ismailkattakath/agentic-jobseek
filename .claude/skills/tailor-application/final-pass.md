@@ -30,7 +30,7 @@ Give each agent the folder path. Each returns findings only; none edits files.
 
 > You are an adversarial fact-checker for the tailored résumé at
 > `<folder>/resume.json`. Compare every bullet, summary sentence and skill
-> against `$JOBSEEK_DRIVE_DIR/base/resume.json` and `$JOBSEEK_DRIVE_DIR/APPLICATION-FACTS.md`, and corroborate
+> against the master (`curl -fsS "$JOBSEEK_MASTER_URL"`) and `$JOBSEEK_DRIVE_DIR/APPLICATION-FACTS.md`, and corroborate
 > anything sharpened with `scripts/evidence.sh "<claim>"`. Flag: a number,
 > scope, tool, title or date not in the sources; two separate facts fused into
 > one claim; personal/OSS evidence used as an enterprise metric; a narrower or
@@ -59,6 +59,15 @@ Give each agent the folder path. Each returns findings only; none edits files.
 
 ## Step C — apply, re-render, re-check
 
-Apply the reviewer's edits to the folder's `resume.json` (never the master in `base/`),
+Apply the reviewer's edits to the folder's `resume.json` (never the master),
 `jsonresume validate`, `scripts/render.sh`, `scripts/final-check.py` again.
 Note the verdict, page count and any disclosed gaps in `status.md`.
+
+## Step D — keep the rulings
+
+Append every fact-check ruling and every newly verified claim to
+`$JOBSEEK_DRIVE_DIR/evidence/claims.jsonl` (`claim`, `verdict`, `use`, `backing`, `employer`,
+`note`, `decided`, `application`, `content_hash` = sha256 of `claim`; replace the line if the
+same claim was ruled before), then `scripts/claims.sh rebuild`. A `teammate` or `stale` ruling
+against text that is also in the master is a correction for the master, made as its own change
+with a `meta.notes` entry.

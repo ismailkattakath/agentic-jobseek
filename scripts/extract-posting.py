@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Extract a schema.org JobPosting (JSON-LD) from a job posting page.
+"""Seed a role folder's job.json from a posting page's schema.org JobPosting (JSON-LD).
 
 Fetches a posting URL (or reads HTML from stdin when the URL argument is "-"),
 scans every <script type="application/ld+json"> block on the page, walks any
 @graph containers and arrays, and finds the object whose @type is (or includes)
-"JobPosting". The matched object is written pretty-printed to
-<application-folder>/posting.json, and its plain-text description is printed to
-stdout so it can be pasted into that folder's posting.md.
+"JobPosting". Its fields are MAPPED into the JSON Resume job-description schema
+(schemas/job-schema.json) and merged into <application-folder>/job.json (fields the
+page does not carry are left as they were). The plain-text description is printed to
+stdout so it can be pasted into that folder's posting.md, which stays the source of
+truth. Responsibilities, qualifications and skills usually need completing from
+posting.md; scripts/job-validate.py says which.
 
 Usage:
     scripts/extract-posting.py <url|-> <application-folder>
@@ -117,6 +120,80 @@ def html_to_text(html):
     return re.sub(r"\n{3,}", "\n\n", joined).strip()
 
 
+def _text_list(value):
+    """A JSON-LD text field (string, HTML or list) as a list of non-empty lines."""
+    if isinstance(value, list):
+        return [x for v in value for x in _text_list(v)]
+    if not isinstance(value, str):
+        return []
+    lines = (ln.lstrip("-*• ").strip() for ln in html_to_text(value).splitlines())
+    return [ln for ln in lines if ln]
+
+
+def to_job_schema(posting, source):
+    """Map a schema.org JobPosting onto the JSON Resume job schema. Only fields the
+    posting actually carries are returned, so nothing is invented."""
+    job = {}
+    if posting.get("title"):
+        job["title"] = html_to_text(posting["title"])
+    org = posting.get("hiringOrganization")
+    if isinstance(org, dict) and org.get("name"):
+        job["company"] = org["name"]
+    etype = posting.get("employmentType")
+    if etype:
+        job["type"] = ", ".join(etype) if isinstance(etype, list) else str(etype)
+    date = str(posting.get("datePosted", ""))[:10]
+    if re.match(r"^[12][0-9]{3}-[01][0-9]-[0-3][0-9]$", date):
+        job["date"] = date
+    desc = html_to_text(posting.get("description", ""))
+    if desc:
+        job["description"] = desc.split("\n\n")[0][:600]
+    loc = posting.get("jobLocation")
+    loc = loc[0] if isinstance(loc, list) and loc else loc
+    addr = loc.get("address") if isinstance(loc, dict) else None
+    if isinstance(addr, dict):
+        mapped = {
+            "address": addr.get("streetAddress"),
+            "postalCode": addr.get("postalCode"),
+            "city": addr.get("addressLocality"),
+            "region": addr.get("addressRegion"),
+            "countryCode": addr.get("addressCountry")
+            if isinstance(addr.get("addressCountry"), str)
+            else None,
+        }
+        job["location"] = {k: v for k, v in mapped.items() if v}
+    if posting.get("jobLocationType") == "TELECOMMUTE":
+        job["remote"] = "Full"
+    salary = posting.get("baseSalary")
+    if isinstance(salary, dict) and isinstance(salary.get("value"), dict):
+        v = salary["value"]
+        lo, hi = v.get("minValue"), v.get("maxValue")
+        amount = "-".join(str(x) for x in (lo, hi) if x is not None) or str(
+            v.get("value", "")
+        )
+        if amount:
+            job["salary"] = " ".join(
+                x
+                for x in (amount, salary.get("currency", ""), v.get("unitText", ""))
+                if x
+            )
+    for src, dst in (("experienceRequirements", "experience"),):
+        if isinstance(posting.get(src), str):
+            job[dst] = html_to_text(posting[src])
+    for src, dst in (
+        ("responsibilities", "responsibilities"),
+        ("qualifications", "qualifications"),
+    ):
+        lines = _text_list(posting.get(src))
+        if lines:
+            job[dst] = lines
+    skills = _text_list(posting.get("skills"))
+    if skills:
+        job["skills"] = [{"name": s} for s in skills]
+    job["meta"] = {"derivedFrom": "schema.org JobPosting JSON-LD", "source": source}
+    return job
+
+
 def read_html(source):
     """Read page HTML from stdin (source == "-") or fetch it over HTTP(S)."""
     if source == "-":
@@ -131,7 +208,7 @@ def read_html(source):
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Extract a schema.org JobPosting (JSON-LD) into "
-        "<folder>/posting.json and print its description.",
+        "<folder>/job.json (JSON Resume job schema) and print its description.",
     )
     parser.add_argument(
         "url",
@@ -139,7 +216,7 @@ def main(argv=None):
     )
     parser.add_argument(
         "folder",
-        help="existing application folder to write posting.json into",
+        help="existing application folder to write job.json into",
     )
     args = parser.parse_args(argv)
 
@@ -171,14 +248,19 @@ def main(argv=None):
         )
         return 1
 
-    out_path = os.path.join(args.folder, "posting.json")
+    out_path = os.path.join(args.folder, "job.json")
+    job = {}
+    if os.path.exists(out_path):
+        with open(out_path, encoding="utf-8") as handle:
+            job = json.load(handle)
+    job.update(to_job_schema(posting, args.url))
     with open(out_path, "w", encoding="utf-8") as handle:
-        json.dump(posting, handle, indent=2, ensure_ascii=False)
+        json.dump(job, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
     print("wrote {}".format(out_path), file=sys.stderr)
     print(
-        "note: posting.json is UNTRUSTED data (same source as the JD); "
-        "posting.md stays the source-of-truth.",
+        "note: job.json is UNTRUSTED data derived from the posting; posting.md stays the "
+        "source of truth. Complete it, then run scripts/job-validate.py.",
         file=sys.stderr,
     )
 

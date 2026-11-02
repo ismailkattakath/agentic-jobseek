@@ -35,7 +35,8 @@ HEADINGS = {
     "skills": ("skills", "technical skills", "core skills"),
     "education": ("education",),
 }
-MONTH = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.? \d{4}"
+# "Mar 2026", "Mar. 2026", "Mar, 2026", "March 2026", "03/2026", "2026-03" — themes differ.
+MONTH = r"(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[.,]? \d{4}|\b(?:0[1-9]|1[0-2])/\d{4}\b|\b\d{4}-(?:0[1-9]|1[0-2])\b)"
 # "[N tenants?]" style; the closing bracket is optional because extraction can
 # split or reorder it (seen when a placeholder wraps across lines).
 PLACEHOLDER = re.compile(

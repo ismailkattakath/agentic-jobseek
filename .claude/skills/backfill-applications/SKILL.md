@@ -22,7 +22,7 @@ argument-hint: "[company/role ...] [--scope enterprise|personal-project|oss-cont
 1. `scripts/evidence.sh "smoke test" --k 1` returns a row. It also proves the cache matches
    its Drive source. If not, **stop and say how to fix it** — never fall back to the master
    résumé (`rules/evidence-gate.md`).
-2. `jsonresume validate --path "$JOBSEEK_DRIVE_DIR/base/resume.json"` passes.
+2. `jsonresume validate --url "$JOBSEEK_MASTER_URL"` passes.
 
 ## For each folder, one at a time
 

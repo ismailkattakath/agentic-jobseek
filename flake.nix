@@ -43,7 +43,7 @@
           jq
           postgresql
           poppler-utils
-          python3
+          (python3.withPackages (ps: [ ps.jsonschema ]))
           shellcheck
           gh
           git
@@ -83,6 +83,7 @@
             fileset = lib.fileset.unions [
               ./scripts
               ./templates
+              ./schemas
             ];
           };
         in
@@ -110,7 +111,8 @@
               {
                 nativeBuildInputs = with pkgs; [
                   shellcheck
-                  python3
+                  (python3.withPackages (ps: [ ps.jsonschema ]))
+                  curl
                 ];
               }
               ''
@@ -120,8 +122,9 @@
                 shellcheck scripts/*.sh
                 python3 -m py_compile scripts/final-check.py scripts/extract-posting.py
 
-                mkdir -p fake/base
-                echo '{"basics":{"name":"Jane Doe"}}' > fake/base/resume.json
+                mkdir -p fake
+                echo '{"basics":{"name":"Jane Doe"}}' > fake/master.json
+                export JOBSEEK_MASTER_URL="file://$PWD/fake/master.json"
                 JOBSEEK_DRIVE_DIR="$PWD/fake" bash scripts/new-application.sh "Acme Corp" "Staff Engineer"
                 app=fake/applications/acme-corp/staff-engineer
                 test -f "$app/posting.md"
@@ -130,6 +133,17 @@
                 if JOBSEEK_DRIVE_DIR="$PWD/fake" bash scripts/new-application.sh "Acme Corp" "Staff Engineer"; then
                   echo "a duplicate scaffold was not refused" >&2; exit 1
                 fi
+                # job.json: the scaffolded template must FAIL validation (empty arrays), a filled one must PASS
+                if python3 scripts/job-validate.py "$app/job.json"; then
+                  echo "an unfilled job.json passed validation" >&2; exit 1
+                fi
+                python3 - "$app/job.json" <<'PY'
+                import json, sys
+                p = sys.argv[1]; j = json.load(open(p))
+                j.update(responsibilities=["Build APIs"], qualifications=["5+ years"], skills=[{"name": "AWS", "keywords": ["Lambda"]}])
+                json.dump(j, open(p, "w"))
+                PY
+                test "$(python3 scripts/job-validate.py "$app/job.json" --items | wc -l)" -eq 3
                 if env -u JOBSEEK_DRIVE_DIR bash scripts/new-application.sh a b; then
                   echo "an unset JOBSEEK_DRIVE_DIR was not refused" >&2; exit 1
                 fi

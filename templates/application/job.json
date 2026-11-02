@@ -1,0 +1,16 @@
+{
+  "title": "{{ROLE}}",
+  "company": "{{COMPANY}}",
+  "type": "",
+  "description": "",
+  "location": {},
+  "salary": "",
+  "experience": "",
+  "responsibilities": [],
+  "qualifications": [],
+  "skills": [],
+  "meta": {
+    "derivedFrom": "posting.md",
+    "extracted": "{{DATE}}"
+  }
+}

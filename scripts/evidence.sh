@@ -111,11 +111,15 @@ cols="doc_type, '['||source_class||'] '||title AS title, company, repo"
 
 # Query text + scope bind as psql vars (:'q' / :'scope' quote safely). embed() runs in-DB.
 # NOTE: psql interpolates :'var' only from stdin/files, NOT from -c — so feed the SQL via stdin.
-sql="SELECT $cols
-     FROM career_docs
+# The query vector is computed ONCE in a materialized CTE: written inline in ORDER BY, the
+# planner seq-scans and calls embed() — an HTTP call to Ollama — once per ROW (measured
+# 2026-11-01: 8.9 s per query over 477 rows).
+sql="WITH q AS MATERIALIZED (SELECT embed(:'q')::vector AS v)
+     SELECT $cols
+     FROM career_docs, q
      WHERE (:'scope' = '' OR source_class = :'scope')
        AND doc_type = ANY(ARRAY[$types_sql])
-     ORDER BY embedding <=> embed(:'q')::vector
+     ORDER BY embedding <=> q.v
      LIMIT :k;"
 printf '%s\n' "$sql" | psql "$RAGDB_URI" -X -q -v ON_ERROR_STOP=1 -tA -F $'\t' \
   -v q="$query" -v scope="$scope" -v k="$k"

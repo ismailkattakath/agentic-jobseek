@@ -16,7 +16,8 @@ Sibling projects: `ismailkattakath/agentic-nomad` (travel) and `ismailkattakath/
 > Every choice carries its evidence and names the alternative it beat.
 
 The stack and every rejected option: `docs/adr/0001-stack.md`. Where data and evidence live,
-and why the RAG is a cache: `docs/adr/0002-data-and-evidence.md`.
+and why the RAG is a cache: `docs/adr/0002-data-and-evidence.md`. The job schema, the claims
+ledger, the single master and the theme trial: `docs/adr/0003-job-schema-claims-and-master.md`.
 
 ## Architecture — four stages, one gate
 
@@ -41,16 +42,17 @@ unset.
 
 | What | Where, under `$JOBSEEK_DRIVE_DIR` |
 |---|---|
-| Master résumé (the source of truth for every variant) | `base/resume.json` |
+| Master résumé (the source of truth for every variant) | **not in Drive**: the published JSON Resume at `$JOBSEEK_MASTER_URL` — one copy, which other tools also read |
 | Search targets, application profile | `base/*.md` |
 | Facts every application may cite (work authorisation, notice, …) | `APPLICATION-FACTS.md` |
 | Priority queue | `APPLY-LIST.md` |
-| One application: posting, tailored résumé, PDF, cover letter, research, status | `applications/<company>/<role>/` |
+| One application: `posting.md` (source), `job.json` (job schema), `evidence.md`, tailored résumé, PDF, cover letter, research, status | `applications/<company>/<role>/` |
 | Raw discovery output and saved searches | `discovery/` |
 | **Career evidence — the source of truth** | `evidence/career_docs.jsonl` |
+| **Claims ledger** — every fact-check ruling and the wording to use | `evidence/claims.jsonl` |
 
-The `career_docs` pgvector table is a **cache** of that last file, rebuilt by
-`scripts/evidence-rebuild.sh`. `RAGDB_URI` reaches it (exported by the operator's
+The `career_docs` and `resume_claims` pgvector tables are **caches** of those two files, rebuilt by
+`scripts/evidence-rebuild.sh` and `scripts/claims.sh rebuild`. `RAGDB_URI` reaches it (exported by the operator's
 environment; a loopback store).
 
 ## Where things live in the repo
@@ -72,6 +74,9 @@ git. `jsonresume` stays the fleet's PATH tool — the flake header says why.
 ```bash
 scripts/new-application.sh "<Company>" "<Role>"            # scaffold a role folder in Drive
 scripts/evidence.sh "<claim>" [--scope enterprise] [--full] # the evidence gate's lookup
+scripts/job-validate.py "<folder>/job.json"                 # job schema + completeness gate
+scripts/job-evidence.sh "<folder>" [--scope enterprise]     # one evidence query per requirement
+scripts/claims.sh search "<draft bullet>"                   # past rulings; `rebuild` after edits
 scripts/evidence-rebuild.sh                                 # cache ← Drive JSONL (idempotent)
 scripts/render.sh "<folder>" "<Role Title>"                 # validate + render <Name>-<Role>.pdf
 scripts/final-check.py "<folder>"                           # pre-submit gate (exit 1 = fix first)

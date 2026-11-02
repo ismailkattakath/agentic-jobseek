@@ -8,7 +8,7 @@ live here. No → data, it goes to its ONE home under `$JOBSEEK_DRIVE_DIR`
 
 | Fact | Its one home |
 |---|---|
-| Résumé content, employers, titles, dates, metrics | `base/resume.json` (master) and each role's `resume.json` |
+| Résumé content, employers, titles, dates, metrics | the master at `$JOBSEEK_MASTER_URL` (published, one copy) and each role's `resume.json` |
 | A posting, research notes, a cover letter | the role folder |
 | Where an application stands | the role folder's `status.md` |
 | What work actually exists | `evidence/career_docs.jsonl` — the pgvector table is rebuilt from it and holds no fact of its own |
