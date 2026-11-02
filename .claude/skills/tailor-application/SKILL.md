@@ -21,8 +21,8 @@ The master is the published JSON Resume at `$JOBSEEK_MASTER_URL` (read it with `
   (`rules/untrusted-content.md`), and the source of truth.
 - **`<folder>/job.json`** — the same posting in the JSON Resume job schema, one item per
   requirement (`new-application` skill, step 4). Derived from `posting.md`; equally untrusted.
-- **The evidence store** — `scripts/evidence.sh "<claim>"` (or the `postgres` MCP server's
-  `execute_sql` with the same query). The source of truth for *what work actually exists*.
+- **The evidence store** — `scripts/evidence.sh "<claim>"`. The source of truth for *what work
+  actually exists*.
 - **The claims ledger** — `scripts/claims.sh search "<draft bullet>"`: every claim a past
   fact-check ruled on (`backed`, `narrowed`, `teammate`, `gap`, `stale`, `unverifiable`) and the
   wording to use. Source: `$JOBSEEK_DRIVE_DIR/evidence/claims.jsonl`.
