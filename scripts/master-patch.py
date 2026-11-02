@@ -12,11 +12,13 @@ patch.json:
   {"reason": "one sentence: what the fact-check found",
    "edits": [
      {"op": "sub",    "path": "/work/0/highlights/2", "old": "exact text", "new": "replacement"},
-     {"op": "remove", "path": "/skills/2/keywords/3", "expect": "exact value being removed"}
+     {"op": "remove", "path": "/skills/2/keywords/3", "expect": "exact value being removed"},
+     {"op": "move",   "from": "/skills/1", "path": "/skills/0", "expect": {"name": "AI/ML Stack"}}
    ]}
 Paths are JSON Pointers (RFC 6901). `sub` replaces one exact substring of a string field and
 fails if it is absent or ambiguous; `remove` deletes an array item or key and fails unless its
-current value equals `expect`. A patch that no longer matches the live master FAILS — re-derive
+current value equals `expect`; `move` (as in RFC 6902) reorders an item within one array and
+fails unless every key in `expect` matches the item being moved. A patch that no longer matches the live master FAILS — re-derive
 it, never force it.
 """
 
@@ -100,6 +102,16 @@ def main(argv=None):
                     f"error: {e['path']}: value is {parent[key]!r}, expected {e.get('expect')!r}"
                 )
             del parent[key]
+        elif e.get("op") == "move":
+            src, i = pointer(new, e["from"])
+            if src is not parent or not isinstance(parent, list):
+                sys.exit(
+                    f"error: move {e['from']} -> {e['path']}: only within one array"
+                )
+            item, want = parent[i], e.get("expect") or {}
+            if not want or any(item.get(k) != v for k, v in want.items()):
+                sys.exit(f"error: {e['from']}: item does not match expect {want!r}")
+            parent.insert(key, parent.pop(i))
         else:
             sys.exit(f"error: unknown op {e.get('op')!r}")
 
