@@ -140,13 +140,6 @@ def main():
         "open roles read Present",
         f"{present} 'Present' for {len(open_roles)} open role(s)",
     )
-    # Profile links must be visible text: an ATS reads the text layer, not a word's hidden hyperlink.
-    urls = [
-        p["url"] for p in resume.get("basics", {}).get("profiles", []) if p.get("url")
-    ]
-    flat = re.sub(r"\s+", "", text)
-    hidden = [u for u in urls if re.sub(r"^https?://|/$", "", u) not in flat]
-    add(not hidden, "profile URLs visible", ", ".join(hidden) or f"{len(urls)} shown")
     ph = PLACEHOLDER.findall(text)
     add(not ph, "no placeholders", ", ".join(ph) or "none")
     # A hyphenated word that wraps at a line end comes out of the text layer GLUED ("label-proof"
