@@ -49,11 +49,14 @@ The master is the published JSON Resume at `$JOBSEEK_MASTER_URL` (read it with `
    - Tune `basics.summary` / `basics.label`; foreground the named stack, but only skills the
      master already claims.
    - A hard requirement with no backing is a **gap to disclose**, not a line to write.
-   - Keep it schema-valid; preserve `meta.theme`.
+   - Keep it schema-valid; preserve `meta.theme` (it drives the jsonresume.org page, not the PDF).
 5. **Validate:** `jsonresume validate --path <folder>/resume.json`.
-6. **Render:** `scripts/render.sh "<folder>" "<Role Title>"` — validates, prints, and names
+6. **Render:** `scripts/render.sh "<folder>" "<Role Title>"` — validates, renders with the
+   repo's own theme (`theme/`, ADR-0005), gates the text layer (`theme-check.py`: order,
+   completeness, no split words — a non-zero exit means fix before anything else), and names
    the PDF from `basics.name` + the role title, e.g. `Jane Doe` + `Staff Engineer` →
-   `JaneDoe-StaffEngineer.pdf`.
+   `JaneDoe-StaffEngineer.pdf`. Never rename it to anything with "final" in it: Jobalytics
+   scores the filename (ADR-0005 §6).
 7. **Final pass** — follow [`final-pass.md`](final-pass.md): the deterministic gate, then
    three parallel reviewers whose edits pass the same evidence gate.
 8. **Follow-ons (optional):**

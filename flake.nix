@@ -1,13 +1,14 @@
 # agentic-jobseek toolkit — the agentic-nomad flake shape, trimmed to what this repo runs.
 #
-#   nix develop      → jq, psql, poppler (pdfinfo/pdftotext), python3, shellcheck, gh, git
+#   nix develop      → jq, psql, poppler (pdfinfo/pdftotext), python3, typst, shellcheck, gh, git
 #   nix fmt          → treefmt (nixfmt + ruff-format + shfmt)
 #   nix flake check  → formatting + toolchain-complete + project-gate (OFFLINE: shellcheck over
 #                      scripts/, and a new-application.sh scaffold into a fake data folder)
 #
 # NOT in the shell on purpose: `jsonresume`. It is the fleet's wrapper (kattakath/nix-config
-# packages/jsonresume.nix) and renders through a system Chrome; vendoring it here would be a
-# second copy to drift. It stays an operator-PATH tool, like the local pgvector + Ollama store.
+# packages/jsonresume.nix); vendoring it here would be a second copy to drift. It stays an
+# operator-PATH tool, now used only for `validate` — PDFs render with the repo's own Typst theme
+# (theme/, docs/adr/0005-own-theme.md), which is why typst IS in the shell.
 {
   description = "agentic-jobseek — an evidence-gated job search run from Claude Code; data lives in Drive";
 
@@ -44,6 +45,7 @@
           postgresql
           poppler-utils
           (python3.withPackages (ps: [ ps.jsonschema ]))
+          typst
           shellcheck
           gh
           git
@@ -56,6 +58,7 @@
         "pdfinfo"
         "pdftotext"
         "python3"
+        "typst"
         "shellcheck"
         "gh"
         "git"
@@ -84,6 +87,7 @@
               ./scripts
               ./templates
               ./schemas
+              ./theme
             ];
           };
         in
@@ -113,6 +117,9 @@
                   shellcheck
                   (python3.withPackages (ps: [ ps.jsonschema ]))
                   curl
+                  typst
+                  poppler-utils
+                  verapdf
                 ];
               }
               ''
@@ -147,6 +154,13 @@
                 if env -u JOBSEEK_DRIVE_DIR bash scripts/new-application.sh a b; then
                   echo "an unset JOBSEEK_DRIVE_DIR was not refused" >&2; exit 1
                 fi
+                # Own theme: render JSON Resume's public sample (MIT), then gate it — ATS-style text
+                # order + completeness, and PDF/UA-1 conformance. A real résumé never enters the build.
+                export HOME="$PWD"   # typst and veraPDF want a writable home in the sandbox
+                bash scripts/theme-render.sh theme/test/sample.resume.json sample.pdf
+                python3 scripts/theme-check.py theme/test/sample.resume.json sample.pdf
+                verapdf --flavour ua1 --format text sample.pdf > vera.txt
+                grep -q '^PASS' vera.txt || { cat vera.txt >&2; exit 1; }
                 touch "$out"
               '';
         }

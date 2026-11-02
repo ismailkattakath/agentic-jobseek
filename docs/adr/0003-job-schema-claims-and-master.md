@@ -70,5 +70,7 @@
 
 - **Decision: stay on academic-cv-lite** — the only theme with a clean text layer and no
   defect. Length is cut in content, not by theme.
+- **Superseded 2026-11-02 by ADR-0005:** the PDF now renders with the repo's own Typst theme
+  (`theme/`); this trial is the record of why no HTML theme was kept.
 - `final-check.py` also learned the date formats these themes print (`Mar, 2026`, `03/2026`) —
   it had failed elegant and macchiato on dates that were present.

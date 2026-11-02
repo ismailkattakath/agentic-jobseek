@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # render.sh <application-folder> [role-title]
-# Validate + render an application's resume.json, then name the submitted PDF
+# Validate + render an application's resume.json with the own theme, gate it, and name the PDF
 #   <FullNameInPascalCase>-<RoleTitleInPascalCase>.pdf   (e.g. JaneDoe-StaffEngineer.pdf)
 # FullName comes from basics.name in the folder's resume.json; RoleTitle from [role-title]
 # (defaults to the folder's basename). Enforces the repo's submitted-PDF naming convention.
@@ -14,7 +14,7 @@ usage() {
 }
 [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
 
-for bin in jsonresume jq; do
+for bin in jsonresume jq typst pdftotext python3; do
   command -v "$bin" >/dev/null 2>&1 || {
     echo "error: '$bin' not found on PATH" >&2
     exit 1
@@ -55,8 +55,11 @@ out="$dir/$full-$role.pdf"
 # Validate before rendering.
 jsonresume validate --path "$resume"
 
-# Render (jsonresume print emits resume.pdf into --destination), then name it.
-jsonresume print --path "$resume" --destination "$dir"
-mv -f "$dir/resume.pdf" "$out"
+# Render with the repo's own theme (theme/, docs/adr/0005-own-theme.md), then gate the text
+# layer: order + completeness in an ATS-style extraction. A failing gate keeps the PDF but
+# exits non-zero, so it is never mistaken for a good render.
+here="$(dirname "$0")"
+bash "$here/theme-render.sh" "$resume" "$out"
+python3 "$here/theme-check.py" "$resume" "$out"
 
 echo "rendered $out"
