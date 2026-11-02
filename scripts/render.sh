@@ -62,7 +62,10 @@ jsonresume validate --path "$resume"
 # reads "Mar 2026" — to an ATS, a one-month role. final-check.py asserts the "Present".
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-jq '(.work // []) |= map(if has("startDate") and (has("endDate") | not) then .endDate = null else . end)' \
+# Same copy: the theme's ContactInfo prints a profile as its network name ("LinkedIn") over a
+# hidden hyperlink, which an ATS cannot read; show the bare URL (as it already does for basics.url).
+jq '(.work // []) |= map(if has("startDate") and (has("endDate") | not) then .endDate = null else . end)
+  | (.basics.profiles // []) |= map(if .url then .network = (.url | sub("^https?://"; "") | sub("/$"; "")) else . end)' \
   "$resume" >"$tmp/resume.json"
 
 # Render (jsonresume print emits resume.pdf into --destination), then name it.
