@@ -6,6 +6,13 @@ docs/adr/0007 § 5 (cross-run trends). Sends ONE OTLP/HTTP JSON metrics request 
   evidence_docs{status=approved|pending|rejected}   documents per state file
   evidence_pending_oldest_age_days                  oldest pending document, in days (0 if none)
   evidence_last_discovery_until_seconds             newest run-*.json `until_at`, unix seconds
+  jobseek_applications{stage}                       role folders per stage, mapped to a CLOSED enum
+                                                    (draft|ready|applied|interview|offer|closed|other)
+  jobseek_applied{window=7d|28d}                    applications with an `applied:` date in the window
+  jobseek_days_since_last_application               newest `applied:` date, in days (absent if none)
+  jobseek_next_action_overdue                       `next_action_due:` already past
+  jobseek_status_drift{kind}                        applied_without_date | unknown_stage
+  (from $JOBSEEK_DRIVE_DIR/applications/*/*/status.md frontmatter; no company or role leaves)
   with --eval, per system in {hybrid, vector, bm25} (from `retrieval-eval.py score --json`):
   evidence_retrieval_ndcg_at_10 / _recall_at_10 / _mrr {system=...}
 
@@ -112,6 +119,71 @@ def store_gauges(store, now):
     if newest is not None:
         out.append(("evidence_last_discovery_until_seconds", "s", {}, int(newest)))
     return out
+
+
+STAGES = {
+    "draft": "draft",
+    "ready": "ready", "ready to apply": "ready",
+    "applied": "applied",
+    "interview": "interview", "interviewing": "interview", "screen": "interview",
+    "offer": "offer",
+    "rejected": "closed", "withdrawn": "closed", "closed": "closed", "declined": "closed",
+}
+
+
+def frontmatter(path):
+    lines = path.read_text(errors="replace").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+    out = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        k, sep, v = line.partition(":")
+        if sep:
+            out[k.strip()] = v.strip().strip('"').strip("'")
+    return out
+
+
+def funnel_gauges(now):
+    """Counts only. The stage map is applied at READ time: the Drive files are not edited."""
+    from pathlib import Path
+
+    root = os.environ.get("JOBSEEK_DRIVE_DIR")
+    if not root:
+        return []
+    files = sorted(Path(root).glob("applications/*/*/status.md"))
+    today = datetime.datetime.fromtimestamp(now, datetime.timezone.utc).date()
+    counts = {s: 0 for s in sorted(set(STAGES.values())) + ["other"]}
+    applied_dates, overdue, no_date = [], 0, 0
+    for f in files:
+        fm = frontmatter(f)
+        stage = STAGES.get(fm.get("stage", "").lower(), "other")
+        counts[stage] += 1
+        applied = fm.get("applied")
+        if applied and applied != "null":
+            try:
+                applied_dates.append(datetime.date.fromisoformat(applied[:10]))
+            except ValueError:
+                no_date += stage in ("applied", "interview", "offer")
+        elif stage in ("applied", "interview", "offer"):
+            no_date += 1
+        due = fm.get("next_action_due")
+        if due and due != "null":
+            try:
+                overdue += datetime.date.fromisoformat(due[:10]) < today
+            except ValueError:
+                pass
+    g = [("jobseek_applications", "{count}", {"stage": s}, n) for s, n in counts.items()]
+    for window, days in (("7d", 7), ("28d", 28)):
+        g.append(("jobseek_applied", "{count}", {"window": window},
+                  sum((today - d).days < days for d in applied_dates)))
+    if applied_dates:
+        g.append(("jobseek_days_since_last_application", "d", {}, (today - max(applied_dates)).days))
+    g.append(("jobseek_next_action_overdue", "{count}", {}, overdue))
+    g.append(("jobseek_status_drift", "{count}", {"kind": "applied_without_date"}, no_date))
+    g.append(("jobseek_status_drift", "{count}", {"kind": "unknown_stage"}, counts["other"]))
+    return g
 
 
 def eval_gauges():
@@ -253,6 +325,7 @@ def main():
         gauges = store_gauges(store, now)
     except store.StoreError as e:
         sys.exit(f"error: {e}")
+    gauges += funnel_gauges(now)
     if args.eval:
         gauges += eval_gauges()
     body = payload(gauges, now)
