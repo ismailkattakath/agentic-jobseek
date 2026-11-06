@@ -85,6 +85,7 @@
             root = ./.;
             fileset = lib.fileset.unions [
               ./scripts
+              ./apps-script
               ./templates
               ./schemas
               ./theme
@@ -120,6 +121,7 @@
                   typst
                   poppler-utils
                   verapdf
+                  nodejs
                 ];
               }
               ''
@@ -127,6 +129,10 @@
                 chmod -R u+w gate
                 cd gate
                 shellcheck scripts/*.sh
+                # the Apps Script drop (V8): a syntax error would only surface after a deploy
+                cp apps-script/inbox-drop/Code.gs drop-code.js
+                node --check drop-code.js
+                python3 -m json.tool apps-script/inbox-drop/appsscript.json > /dev/null
                 python3 -m py_compile scripts/*.py
 
                 mkdir -p fake

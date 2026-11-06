@@ -478,3 +478,11 @@ routine attaches **no connectors**: GitHub is `gh` through the cloud's GitHub Ap
 | gcloud / rclone with a Drive credential | gcloud has no Drive commands; every credential that can list is a key to the whole Drive (§ 4h's table) |
 | Run-file stamps parsed from names | a stamp is `until_at` cut to the minute and moved on a collision, so `since` would drift |
 | `since` from the Neon cache | a run with no proposal leaves no row, and the cache lags until intake |
+
+**Deploying the drop:** `scripts/drop-deploy.sh` pushes `apps-script/inbox-drop/` and redeploys its
+one versioned deployment (same URL), finding the project by name and the deployment as the only
+versioned one, so no id lives in the repo; verified as deployment @4. It runs from the Mac, not CI:
+the web app executes as whoever deploys it, the Apps Script API rejects service accounts, and
+the CI route stores the operator's Google refresh token as a GitHub secret. A new scope still
+needs one consent in the editor. The offline gate syntax-checks `Code.gs` (a broken copy is
+refused).
