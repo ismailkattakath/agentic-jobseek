@@ -123,11 +123,17 @@ def store_gauges(store, now):
 
 STAGES = {
     "draft": "draft",
-    "ready": "ready", "ready to apply": "ready",
+    "ready": "ready",
+    "ready to apply": "ready",
     "applied": "applied",
-    "interview": "interview", "interviewing": "interview", "screen": "interview",
+    "interview": "interview",
+    "interviewing": "interview",
+    "screen": "interview",
     "offer": "offer",
-    "rejected": "closed", "withdrawn": "closed", "closed": "closed", "declined": "closed",
+    "rejected": "closed",
+    "withdrawn": "closed",
+    "closed": "closed",
+    "declined": "closed",
 }
 
 
@@ -174,15 +180,34 @@ def funnel_gauges(now):
                 overdue += datetime.date.fromisoformat(due[:10]) < today
             except ValueError:
                 pass
-    g = [("jobseek_applications", "{count}", {"stage": s}, n) for s, n in counts.items()]
+    g = [
+        ("jobseek_applications", "{count}", {"stage": s}, n) for s, n in counts.items()
+    ]
     for window, days in (("7d", 7), ("28d", 28)):
-        g.append(("jobseek_applied", "{count}", {"window": window},
-                  sum((today - d).days < days for d in applied_dates)))
+        g.append(
+            (
+                "jobseek_applied",
+                "{count}",
+                {"window": window},
+                sum((today - d).days < days for d in applied_dates),
+            )
+        )
     if applied_dates:
-        g.append(("jobseek_days_since_last_application", "d", {}, (today - max(applied_dates)).days))
+        g.append(
+            (
+                "jobseek_days_since_last_application",
+                "d",
+                {},
+                (today - max(applied_dates)).days,
+            )
+        )
     g.append(("jobseek_next_action_overdue", "{count}", {}, overdue))
-    g.append(("jobseek_status_drift", "{count}", {"kind": "applied_without_date"}, no_date))
-    g.append(("jobseek_status_drift", "{count}", {"kind": "unknown_stage"}, counts["other"]))
+    g.append(
+        ("jobseek_status_drift", "{count}", {"kind": "applied_without_date"}, no_date)
+    )
+    g.append(
+        ("jobseek_status_drift", "{count}", {"kind": "unknown_stage"}, counts["other"])
+    )
     return g
 
 
