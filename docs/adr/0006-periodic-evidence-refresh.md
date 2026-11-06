@@ -456,3 +456,25 @@ a logged-in `glab` serves instead. A missing token or a GitLab failure goes into
 | Drafters call the connector themselves | the model still chooses what to fetch, untested in a workflow agent, no branch control |
 | Connector as a fallback | a second path whose output is titles only; an error in the run file is more honest |
 | A token with `api` or `read_repository` + clone | wider than needed; `read_api` reads commits and diffs |
+
+## 4l. No connectors: the window comes from the drop, 2026-11-06
+
+After § 4k the Drive connector did one job, step 1's listing of run files (`since` and the taken
+stamps), and it was the routine's last second login. The Apps Script drop now answers
+`{token, action: "list"}` with every run file in the inbox, `drop/` and `processed/` and its
+`until_at`; `scripts/inbox-upload.py window` turns that into `{since, until_at, taken}`. The
+routine attaches **no connectors**: GitHub is `gh` through the cloud's GitHub App, GitLab a token
+(§ 4k), Neon `scripts/match.py` over SQL-over-HTTPS with the read-only role, Drive the drop.
+
+- **Scope:** reading run files the drop did not create needs `drive.readonly` beside
+  `drive.file` (consented by the operator 2026-11-06). The code reads only the inbox tree and only
+  `run-*.json`; the token can still only add files to `drop/` and list run files.
+- **Checked:** the editor's `checkList()` found 16 run files, all in `processed/`, latest
+  `until_at` 2026-11-02T22:17:04Z — equal to a local listing and to the store's last-run hook;
+  the live web app refuses a wrong token (`unauthorized`). The window rules are in the offline gate.
+
+| Rejected | Why it lost |
+|---|---|
+| gcloud / rclone with a Drive credential | gcloud has no Drive commands; every credential that can list is a key to the whole Drive (§ 4h's table) |
+| Run-file stamps parsed from names | a stamp is `until_at` cut to the minute and moved on a collision, so `since` would drift |
+| `since` from the Neon cache | a run with no proposal leaves no row, and the cache lags until intake |

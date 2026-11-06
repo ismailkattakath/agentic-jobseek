@@ -81,4 +81,30 @@ with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
     json.dump(new, open(chk, "w"))
     r = subprocess.run([sys.executable, os.path.join(SCRIPTS, "assemble.py"), "--check", chk], capture_output=True, text=True)  # fmt: skip
     assert r.returncode == 1 and "metadata/evidence/0" in r.stdout, r.stdout
+# inbox-upload.py window: since = the largest until_at (not the newest file), a bare date gets
+# T00:00:00Z, taken lists every stamp, no run files → 7 days back (ADR-0006 § 4l).
+spec = importlib.util.spec_from_file_location(
+    "iu", os.path.join(SCRIPTS, "inbox-upload.py")
+)
+iu = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(iu)
+import datetime  # noqa: E402
+
+now = datetime.datetime(2026, 1, 20, 12, 0, 0, tzinfo=datetime.timezone.utc)
+runs = [{"folder": "processed", "name": "run-20260110T0000Z.json", "until_at": "2026-01-10T00:00:00Z"},
+        {"folder": "drop", "name": "run-20260105T0000Z.json", "until_at": "2026-01-05T00:00:00Z"},
+        {"folder": "inbox", "name": "run-20260111T0000Z.json", "until_at": None}]  # fmt: skip
+iu.post = lambda url, payload: {"ok": True, "runs": runs}
+w = iu.window("u", "t", [], now=now)
+assert (
+    w["since"] == "2026-01-10T00:00:00Z" and w["until_at"] == "2026-01-20T12:00:00Z"
+), w
+assert w["taken"] == "20260105T0000Z,20260110T0000Z,20260111T0000Z", w
+w = iu.window("u", "t", ["--since", "2026-01-01", "--until", "2026-01-08"], now=now)
+assert (w["since"], w["until_at"]) == (
+    "2026-01-01T00:00:00Z",
+    "2026-01-08T00:00:00Z",
+), w
+iu.post = lambda url, payload: {"ok": True, "runs": []}
+assert iu.window("u", "t", [], now=now)["since"] == "2026-01-13T12:00:00Z"
 print("pipeline-test: ok")

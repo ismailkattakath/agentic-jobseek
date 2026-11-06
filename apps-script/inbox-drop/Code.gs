@@ -12,6 +12,11 @@
  * POST a JSON body {token, name, content} (content = the file's text). Answers JSON:
  * {ok, id, name, bytes, sha256} or {ok: false, error}. sha256 is over the UTF-8 bytes of
  * content as received, so the caller can prove the upload was byte-exact.
+ *
+ * POST {token, action: "list"} answers {ok, runs: [{folder, name, until_at}]}: every run file in
+ * the inbox (the drop folder's parent), drop/ and processed/, so the routine's window and taken
+ * stamps come from a script, not a connector (ADR-0006 § 4l). Reading files this script did not
+ * create needs drive.readonly; the code reads only that folder tree, and only run files.
  */
 
 const NAME_RE = /^(proposal-[0-9A-Za-z]+\.jsonl|run-[0-9A-Za-z]+\.json)$/;
@@ -27,6 +32,7 @@ function doPost(e) {
       return reply_({ok: false, error: 'body is not JSON'});
     }
     if (!token || !sameText_(String(p.token || ''), token)) return reply_({ok: false, error: 'unauthorized'});
+    if (p.action === 'list') return reply_({ok: true, runs: listRuns_(dropFolder_(props))});
     const name = String(p.name || '');
     if (!NAME_RE.test(name)) return reply_({ok: false, error: 'bad name'});
     const body = typeof p.content === 'string' ? p.content : '';
@@ -50,6 +56,38 @@ function doPost(e) {
 function setup() {
   const id = dropFolder_(PropertiesService.getScriptProperties());
   Logger.log('drop folder ' + id + (PropertiesService.getScriptProperties().getProperty('TOKEN') ? ', TOKEN set' : ', TOKEN NOT set'));
+}
+
+function listRuns_(dropId) {
+  const drop = DriveApp.getFolderById(dropId);
+  const inbox = drop.getParents().next();
+  const folders = [['inbox', inbox], ['drop', drop]];
+  const processed = inbox.getFoldersByName('processed');
+  if (processed.hasNext()) folders.push(['processed', processed.next()]);
+  const runs = [];
+  folders.forEach(([label, folder]) => {
+    const files = folder.getFiles();
+    while (files.hasNext()) {
+      const f = files.next();
+      if (!/^run-[0-9A-Za-z]+\.json$/.test(f.getName()) || f.isTrashed()) continue;
+      let until = null;
+      try {
+        until = JSON.parse(f.getBlob().getDataAsString()).until_at || null;
+      } catch (err) {
+        until = null; // an unreadable run file still takes its stamp
+      }
+      runs.push({folder: label, name: f.getName(), until_at: until});
+    }
+  });
+  return runs.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
+/** Run from the editor: logs what `list` would answer (counts and the latest until_at only). */
+function checkList() {
+  const runs = listRuns_(dropFolder_(PropertiesService.getScriptProperties()));
+  const ends = runs.map((r) => r.until_at).filter(Boolean).sort();
+  Logger.log(runs.length + ' run files; latest until_at ' + ends[ends.length - 1] +
+    '; by folder ' + JSON.stringify(runs.reduce((m, r) => ((m[r.folder] = (m[r.folder] || 0) + 1), m), {})));
 }
 
 function dropFolder_(props) {

@@ -2,7 +2,10 @@
   "timeZone": "Etc/UTC",
   "exceptionLogging": "STACKDRIVER",
   "runtimeVersion": "V8",
-  "oauthScopes": ["https://www.googleapis.com/auth/drive.file"],
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive.readonly"
+  ],
   "dependencies": {
     "enabledAdvancedServices": [{"serviceId": "drive", "userSymbol": "Drive", "version": "v3"}]
   },
