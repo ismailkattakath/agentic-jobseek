@@ -213,6 +213,33 @@ The model stopped early by choice.
 | A per-run group cap with resume state | adds state to the procedure for a limit the run never hit |
 | Opus for the whole session | 2× the cost on orchestration that needs no judgment |
 
+## 4g. First drafter run, 2026-11-06 — what worked, what broke
+
+Re-run of 2026-08-01..08-11 on the § 4f design (session `cse_01G12ck8RqJXDTJQS11RQP1b`):
+
+| Check | Result |
+|---|---|
+| Visibility after the Claude GitHub App was installed on the missing org | ✅ 97 PRs and 65 issues: equal to a local count of the same window |
+| Drafters | ✅ `drafter: evidence-group` — the setup script's symlink loaded the Opus agent; **28 of 28** groups drafted (15 enrich, 11 new, 2 skip) in ~30 min |
+| Advisor via `advisorModel` in user settings | ❌ `advisor: none` — not offered to a cloud session this way; the setup-script line stays only until a documented route exists |
+| Proposal upload | ❌ 317,686 bytes could not go through one Drive connector call verbatim; nothing reached intake |
+
+**Fix — the proposal travels in parts.** The routine splits it into ≤ 40,000-byte parts
+(50,716 bytes had uploaded intact on 2026-11-06), records each part's content fingerprint in the
+run file's `proposal_parts`, and uploads the run file last. Intake waits for every part, checks
+each fingerprint, and takes the parts in as one all-or-nothing run. Tested on a copy of the
+store: the same 19 outcomes from two parts as from one file; a changed part → `superseded`; a
+missing part → not taken in yet.
+
+| Rejected | Why it lost |
+|---|---|
+| Lower `max_groups` per run | splits the work across more runs instead of fixing the transport; a busy week would still fail |
+| Slimmer proposal lines (drop `neighbours`, `read`) | they are the audit trail intake and review rely on |
+| Uploading from a script | the sandbox holds no Drive credential; the connector is the only path |
+
+**Cost, measured:** one drafter used ~131K tokens (`tk-agent-spec`), so a 28-group window is on
+the order of 3–4M Opus tokens.
+
 ## 5. Rejected
 
 | Option | Why it lost |
