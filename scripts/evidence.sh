@@ -10,7 +10,8 @@
 # never exported; psql gets it through PG* environment variables, never argv).
 #
 # Drift gate (ADR-0007 § 4): the sha256 of each local state file is compared with `evidence_sync`;
-# on a difference this runs scripts/evidence-sync.sh first (one line on stderr says so).
+# on a difference — or when a discovery run waits in the inbox — this runs scripts/evidence-sync.sh
+# first (one line on stderr says so), which takes the run in as pending.
 #
 # Usage:
 #   scripts/evidence.sh "<claim or JD requirement>" [--scope enterprise|personal-project|oss-contribution]
@@ -110,8 +111,17 @@ SELECT count(*) FROM public.evidence_sync
 WHERE (file, sha256) IN (('approved.jsonl', :'a'), ('pending.jsonl', :'p'), ('rejected.jsonl', :'r'));
 SQL
 )
-if [ "$synced" != 3 ]; then
-  echo "evidence.sh: the Neon cache differs from the Drive files — running evidence-sync.sh first" >&2
+# Intake at the point of use: a finished run waiting in inbox/ or inbox/drop/ (the routine uploads
+# its run file last) is taken in before answering, so tailoring sees it — on this Mac, never in the
+# cloud: the routine only proposes (ADR-0006 § 1; ADR-0007 § 3).
+waiting=$(find "$JOBSEEK_DRIVE_DIR/evidence/inbox" -maxdepth 2 -name 'run-*.json' \
+  -not -path '*/processed/*' -not -path '*/superseded/*' 2>/dev/null | grep -c . || true)
+if [ "$synced" != 3 ] || [ "$waiting" -gt 0 ]; then
+  if [ "$waiting" -gt 0 ]; then
+    echo "evidence.sh: $waiting discovery run(s) waiting in the inbox — running evidence-sync.sh first" >&2
+  else
+    echo "evidence.sh: the Neon cache differs from the Drive files — running evidence-sync.sh first" >&2
+  fi
   log="$(mktemp)"
   "$here/evidence-sync.sh" >"$log" 2>&1 || {
     cat "$log" >&2

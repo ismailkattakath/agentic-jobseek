@@ -535,3 +535,20 @@ readability, not a search need — and fills the latest continuation while it ha
 | Split the 102 documents into ≤ 6.8K documents | pending 227 → 543 to review (+316), and the Drive files rewritten |
 | A larger embedding model window | a new model and a re-embed of everything, still a cap |
 | No merge cap | search no longer needs one, but a 144K document cannot be reviewed |
+
+## 4o. Intake at the point of use, 2026-11-06
+
+The routine still only proposes (§ 1: it reads attacker-reachable text, so it holds no credential
+that can rewrite the store — the drop token adds files, Neon is read-only). What changed is who
+starts intake: `scripts/evidence.sh`, the evidence gate's lookup, now runs `evidence-sync.sh`
+before answering whenever a finished run waits in `inbox/` or `inbox/drop/` (a `run-*.json`; the
+routine uploads it last, so a half-uploaded run is never taken in). Tailoring therefore sees a
+week's discoveries without a manual step, and intake stays on the Mac — the one writer of the
+state files. A run intake refuses makes `evidence.sh` refuse to answer, as a failed sync already
+did (the gate's STOP rule).
+
+| Rejected | Why it lost |
+|---|---|
+| Intake inside the cloud routine | needs a credential that can rewrite the store, held by a session that reads untrusted text |
+| A weekly launchd job on the Mac | one more scheduled job, and the Mac must be awake; the point of use is the only time freshness matters |
+
