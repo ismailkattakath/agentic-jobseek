@@ -277,6 +277,13 @@ one byte-exact file needs no splitting.
 | Drive API with an OAuth refresh token | a long-lived, broader Google credential in an environment variable |
 | rclone + service account | service accounts hold no My Drive storage, so the inbox would move to a Shared Drive |
 | Slimmer proposals / fewer groups | the model still retypes; the failure becomes rarer, not impossible |
+| A `PreToolUse` hook that fills `create_file`'s `textContent` from disk (`updatedInput`) | repo hooks load only in a **single-repo** cloud session (the routine attaches 8); `updatedInput` on a connector tool and a ~300 KB hook stdout are undocumented (code.claude.com/docs hooks, settings § cloud sessions; researched 2026-11-06) |
+| A committed `.mcp.json` stdio server with `upload_file(path)` | loads only in a single-repo session, and its script would still need a Drive credential |
+| Bash calling the connector | connector traffic runs through Anthropic's servers; the sandbox holds no endpoint or credential (undocumented) |
+
+**Why retyping cannot be fixed by care:** `create_file` takes only `textContent` / `base64Content`, so
+every byte is model output; ~300 KB is ~100K+ tokens against a 128K output cap (base64 adds a
+third), and a cut-off `tool_use` is truncated, not resumed (platform docs, handling stop reasons).
 
 ### 4h.1 First clean run and its three follow-ups, 2026-11-06
 
