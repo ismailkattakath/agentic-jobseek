@@ -129,10 +129,20 @@ CREATE TABLE IF NOT EXISTS :"syn" (
   row_count integer NOT NULL,
   synced_at timestamptz NOT NULL DEFAULT now()
 );
+-- One vector per <= 6,000-character piece of each version, so search sees past the model's
+-- 2,048-token window (ADR-0006 § 4n; embed.py chunks fills it). Gone with its version.
+\set chk :tbl '_chunk'
+CREATE TABLE IF NOT EXISTS :"chk" (
+  content_hash text NOT NULL REFERENCES :"tbl" (content_hash) ON DELETE CASCADE,
+  idx          integer NOT NULL,
+  embedding    vector(768) NOT NULL,
+  embed_spec   text NOT NULL,
+  PRIMARY KEY (content_hash, idx)
+);
 -- The cloud routine reads through the read-only evidence_reader role (match.py). A table rebuilt
 -- by DROP + CREATE loses its grants, so re-grant on every run (idempotent). Skipped when the role
 -- does not exist (a scratch database).
-SELECT format('GRANT SELECT ON %I, %I TO evidence_reader', :'tbl', :'syn')
+SELECT format('GRANT SELECT ON %I, %I, %I TO evidence_reader', :'tbl', :'syn', :'chk')
 WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'evidence_reader') \gexec
 \set i_hnsw :tbl '_embedding_hnsw'
 \set i_tsv :tbl '_tsv_gin'
@@ -243,6 +253,12 @@ left="$(todo)"
 echo "embedded $((before - left))"
 [ "$left" = 0 ] || {
   echo "error: $left row(s) still have no vector" >&2
+  exit 1
+}
+python3 "$here/embed.py" chunks "$table"
+unchunked="$(psql -X -tA -c "SELECT count(*) FROM $table t WHERE NOT EXISTS (SELECT 1 FROM ${table}_chunk c WHERE c.content_hash = t.content_hash)")"
+[ "$unchunked" = 0 ] || {
+  echo "error: $unchunked row(s) have no chunk vectors" >&2
   exit 1
 }
 

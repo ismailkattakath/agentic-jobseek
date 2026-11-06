@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""embed.py query "<text>" | fill <table> <text-column> [--vec COL] [--prefix P] [--no-spec] | pgenv
+"""embed.py query "<text>" | fill <table> <text-column> [--vec COL] [--prefix P] [--no-spec] | chunks <table> | pgenv
 
 nomic-embed-text vectors, computed on the client (docs/adr/0006). The cache moved to Neon, which
 cannot reach the local Ollama, so no script embeds in SQL any more.
@@ -8,6 +8,10 @@ cannot reach the local Ollama, so no script embeds in SQL any more.
   fill    embed every row of <table> whose <vec> column is NULL (default: embedding, prefix
           'search_document: ', recording the recipe in embed_spec) and write the vectors back.
           --no-spec skips embed_spec for tables without one (eval_docs).
+  chunks  fill <table>_chunk: every version's content in sentence-packed pieces of at most
+          CHUNK_CHARS characters, one vector each, so a document longer than the model's window is
+          searchable end to end (ADR-0006 § 4n). A version that fits is one chunk, embedded exactly
+          as `fill` embeds it, so its vector is copied, not recomputed.
   pgenv   print the connection as `export PG*=…` lines for `eval` (scripts/db-env.sh does this),
           so no psql call ever carries the connection string — or its password — in argv.
 
@@ -26,6 +30,7 @@ import csv
 import io
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -35,6 +40,10 @@ from urllib.parse import parse_qsl, unquote, urlsplit
 
 MODEL = "nomic-embed-text"
 SPEC = f"{MODEL}|search_document: "
+# 2,048 tokens is >= 6,820 characters at the lowest ratio measured (3.33 chars/token over 40 store
+# documents, Ollama's prompt_eval_count, 2026-11-06); 6,000 leaves room for the prefix.
+CHUNK_CHARS = 6000
+CHUNK_SPEC = f"{SPEC}|chunk{CHUNK_CHARS}"
 OLLAMA = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434").rstrip("/")
 if "://" not in OLLAMA:  # Ollama's own convention is a bare host:port
     OLLAMA = "http://" + OLLAMA
@@ -171,6 +180,76 @@ def fill(table, col, vec, prefix, spec):
     print(f"{table}: embedded {len(rows)} rows", file=sys.stderr)
 
 
+def chunks(text, limit=CHUNK_CHARS):
+    """`text` in order as pieces of at most `limit` characters, cut between sentences (a longer
+    sentence is cut at the limit). Text that fits comes back unchanged, as one piece."""
+    if len(text) <= limit:
+        return [text]
+    out, cur = [], ""
+    for s in re.split(r"(?<=[.!?])\s+", text.strip()):
+        while len(s) > limit:
+            if cur:
+                out.append(cur)
+                cur = ""
+            out.append(s[:limit])
+            s = s[limit:]
+        if cur and len(cur) + 1 + len(s) > limit:
+            out.append(cur)
+            cur = s
+        else:
+            cur = f"{cur} {s}" if cur else s
+    if cur:
+        out.append(cur)
+    return out
+
+
+def fill_chunks(table, prefix="search_document: "):
+    env = db_env()
+    if not table.replace("_", "").isalnum():
+        sys.exit(f"error: bad identifier {table!r}")
+    chk = table + "_chunk"
+    csv.field_size_limit(sys.maxsize)
+    # A recipe change (model, prefix or chunk size) re-chunks everything.
+    psql(env, f"DELETE FROM {chk} WHERE embed_spec <> '{CHUNK_SPEC}';\n")
+    # One piece and the document's own vector under the current recipe: the same input, copied.
+    psql(
+        env,
+        f"INSERT INTO {chk} (content_hash, idx, embedding, embed_spec) "
+        f"SELECT content_hash, 0, embedding, '{CHUNK_SPEC}' FROM {table} t "
+        f"WHERE length(content) <= {CHUNK_CHARS} AND embedding IS NOT NULL AND embed_spec = '{SPEC}' "
+        f"AND NOT EXISTS (SELECT 1 FROM {chk} c WHERE c.content_hash = t.content_hash);\n",
+    )
+    rows = list(
+        csv.reader(
+            io.StringIO(
+                psql(
+                    env,
+                    f"\\copy (SELECT content_hash, content FROM {table} t WHERE NOT EXISTS "
+                    f"(SELECT 1 FROM {chk} c WHERE c.content_hash = t.content_hash)) TO STDOUT WITH (FORMAT csv)\n",
+                )
+            )
+        )
+    )
+    buf, n = io.StringIO(), 0
+    w = csv.writer(buf)
+    for h, text in rows:
+        for i, piece in enumerate(chunks(text)):
+            w.writerow([h, i, literal(embed(prefix + piece))])
+            n += 1
+    if rows:
+        psql(
+            env,
+            "CREATE TEMP TABLE v (h text, i integer, e text);\n"
+            "\\copy v FROM pstdin WITH (FORMAT csv)\n"
+            f"INSERT INTO {chk} (content_hash, idx, embedding, embed_spec) "
+            f"SELECT h, i, e::vector, '{CHUNK_SPEC}' FROM v;\n",
+            buf.getvalue(),
+        )
+    print(
+        f"{chk}: {n} chunk(s) embedded for {len(rows)} long version(s)", file=sys.stderr
+    )
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -182,6 +261,8 @@ def main():
     f.add_argument("--vec", default="embedding")
     f.add_argument("--prefix", default="search_document: ")
     f.add_argument("--no-spec", action="store_true")
+    c = sub.add_parser("chunks")
+    c.add_argument("table")
     sub.add_parser("pgenv")
     a = ap.parse_args()
     if a.cmd == "pgenv":
@@ -192,6 +273,8 @@ def main():
             print(f"export {k}={shlex.quote(v)}")
     elif a.cmd == "query":
         print(literal(embed("search_query: " + a.text)))
+    elif a.cmd == "chunks":
+        fill_chunks(a.table)
     else:
         fill(a.table, a.column, a.vec, a.prefix, not a.no_spec)
 

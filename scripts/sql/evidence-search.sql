@@ -8,7 +8,7 @@
 -- :k rows, and :cols the select list over d (the evidence table), f.s (the fused score) and q.v
 -- (the query vector), interpolated raw — the caller picks it; evidence.sh asks for doc_type, title,
 -- company, repo [, content]; the routine asks for doc_id, the full content_hash, status and the
--- cosine 1 - (d.embedding <=> q.v).
+-- best-chunk cosine (match.py's COLS).
 -- Reference q.v, never :'qv' again: the vector literal is ~5–8 KB and the cloud routine passes the
 -- whole statement through a connector call.
 -- Rows are VERSIONS (primary key content_hash): a pending enrichment shares its approved base's doc_id,
@@ -24,8 +24,11 @@ WITH q AS MATERIALIZED (SELECT :'qv'::vector AS v),
      pool AS (SELECT * FROM public.evidence
               WHERE (:'scope' = '' OR source_class = :'scope') AND doc_type = ANY(:'types'::text[])
                 AND status = ANY(:'statuses'::text[])),
-     v AS (SELECT p.content_hash, row_number() OVER (ORDER BY p.embedding <=> q.v) AS r
-           FROM pool p, q ORDER BY p.embedding <=> q.v LIMIT 50),
+     -- A version ranks by its closest chunk (public.evidence_chunk, <= 6,000 characters each):
+     -- one vector per document saw only its first 2,048 tokens (ADR-0006 § 4n).
+     v AS (SELECT p.content_hash, row_number() OVER (ORDER BY min(c.embedding <=> q.v)) AS r
+           FROM pool p JOIN public.evidence_chunk c USING (content_hash), q
+           GROUP BY p.content_hash ORDER BY min(c.embedding <=> q.v) LIMIT 50),
      b AS (SELECT p.content_hash, row_number() OVER (ORDER BY ts_rank_cd(p.tsv, tq.t) DESC) AS r
            FROM pool p, tq WHERE p.tsv @@ tq.t ORDER BY ts_rank_cd(p.tsv, tq.t) DESC LIMIT 50),
      f AS (SELECT content_hash, sum(1.0 / (60 + r)) AS s

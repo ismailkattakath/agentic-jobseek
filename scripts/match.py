@@ -36,7 +36,7 @@ TYPES = "{contribution,hard_problem,skill_evidence,architecture_decision,unique_
 STATUSES = "{approved,pending,rejected}"
 COLS = (
     "d.doc_id, d.content_hash, d.title, "
-    "round((1 - (d.embedding <=> q.v))::numeric, 4) AS cosine, d.status, d.repo, d.period"
+    "(SELECT round((1 - min(c.embedding <=> q.v))::numeric, 4) FROM public.evidence_chunk c WHERE c.content_hash = d.content_hash) AS cosine, d.status, d.repo, d.period"
 )
 
 

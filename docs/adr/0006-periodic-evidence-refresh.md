@@ -505,3 +505,33 @@ never drafted. With every step scripted nothing else limits a window: `max_group
 | Keep 100 | a busy window silently loses its lowest-ranked groups |
 | A cap with carry-over to the next run | state between runs for a limit nothing else needs |
 
+
+## 4n. Search sees whole documents: chunk vectors, and a 20K merge cap, 2026-11-06
+
+Re-runs merge each window's work into the pending document it matched, and nothing bounded the
+growth: the largest reached **144,422 characters** (361 sentences, 25 merges), and **102 of 227**
+pending documents passed the embedding window, while approved ones top out near 3,200. The window
+is 2,048 tokens = **6,820–8,400 characters** (3.33–4.73 chars/token over 40 store documents,
+Ollama's `prompt_eval_count`), so one vector per document left most of a long one unsearchable.
+
+**Decision:** the cache embeds chunks. `public.evidence_chunk` holds one vector per sentence-packed
+piece of at most **6,000 characters** (`embed.py chunks`; a version that fits is one piece and its
+vector is copied); the hybrid search ranks a version by its **closest chunk**, and match.py reports
+that cosine. The Drive files are untouched: the documents stay whole, the chunks are derived.
+Intake now starts a linked **continuation** document (`metadata.continues`, title "… (continued)")
+when a merge would take a document past **20,000 characters** — a judgment for review
+readability, not a search need — and fills the latest continuation while it has room.
+
+| Check | Before | After |
+|---|---|---|
+| 40 sentences from past character 8,500 of long pending docs: source doc in hybrid top 10 | 32/40 | **38/40** |
+| the same, vector only | 19/40 | **33/40** |
+| graded eval (approved, 55 queries) hybrid nDCG@10 | 0.707 | **0.707** (every approved doc is one chunk, so it cannot move) |
+| cache | 744 versions | 1,083 chunks, 0 versions unchunked, 628 copied; `evidence_reader` can read it |
+| intake on a scratch copy | — | enrich of the 144K doc → one continuation; a second → merged into it; a small doc merges as before; invariant ok |
+
+| Rejected | Why it lost |
+|---|---|
+| Split the 102 documents into ≤ 6.8K documents | pending 227 → 543 to review (+316), and the Drive files rewritten |
+| A larger embedding model window | a new model and a re-embed of everything, still a cap |
+| No merge cap | search no longer needs one, but a 144K document cannot be reviewed |

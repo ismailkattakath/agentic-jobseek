@@ -445,6 +445,58 @@ def _new_doc(p, draft, stamp, ts):
     })  # fmt: skip
 
 
+# Past this many characters a merge starts (or fills) a linked continuation document instead of
+# growing the target: a judgment for review readability (approved documents top out near 3,200;
+# merged pending ones reached 144,422 by 2026-11-06). Search does not need it — the cache embeds
+# every 6,000-character chunk (ADR-0006 § 4n).
+MERGE_CAP_CHARS = 20000
+
+
+def _overflow(target, tid, add, pend):
+    """None if `add` fits on `target`; else (root doc_id, the pending continuation of root with
+    room for it, or None when a new continuation is needed)."""
+    grow = 1 + len(" ".join(add))
+    if len(target["content"]) + grow <= MERGE_CAP_CHARS:
+        return None
+    root = (target.get("metadata") or {}).get("continues") or tid
+    room = [
+        r for r in pend
+        if (r.get("metadata") or {}).get("continues") == root
+        and len(r["content"]) + grow <= MERGE_CAP_CHARS
+    ]  # fmt: skip
+    return root, max(room, key=lambda r: r.get("created_at") or "") if room else None
+
+
+def _continuation(target, root, add, draft, p, stamp, ts):
+    """A new pending document carrying `add`, linked to `root` by metadata.continues."""
+    meta = {
+        k: v
+        for k, v in (target.get("metadata") or {}).items()
+        if k not in ("proposal", "enrichments", "evidence", "commit_refs")
+    }
+    meta.update(
+        continues=root,
+        evidence=_union([], p.get("sources")),
+        commit_refs=list(draft.get("commit_refs") or []),
+        origin=f"evidence-discover {stamp}",
+        proposal=_proposal_meta("new", stamp, p, continues=root, added_sentences=add),
+    )
+    content = " ".join(add)
+    end = draft.get("period_end")
+    title = target["title"]
+    if not (target.get("metadata") or {}).get("continues"):
+        title += " (continued)"
+    if not hasattr(uuid, "uuid7"):
+        raise StoreError("uuid.uuid7() needs Python >= 3.14 (RFC 9562)")
+    return normalize({
+        **{k: target.get(k) for k in ("doc_type", "source_class", "company", "repo", "skills",
+                                     "technologies", "domains", "author_confidence")},
+        "doc_id": str(uuid.uuid7()), "content_hash": sha(content), "title": title,
+        "content": content, "period": end or target.get("period", ts[:7]), "metadata": meta,
+        "created_at": ts, "updated_at": ts,
+    })  # fmt: skip
+
+
 def _norm(text):
     """Whitespace-collapsed, case-folded text: the comparison form for 'was this rejected?'."""
     return " ".join((text or "").split()).casefold()
@@ -637,6 +689,22 @@ def intake(proposal_path, run_path=None, dry_run=False):
                         else "no-op (nothing new to add to the pending version)"
                     )
                     continue
+                over = _overflow(cur, tid, add, pend)
+                if over and over[1] is None:  # a new continuation document
+                    doc = _continuation(cur, over[0], add, draft, p, stamp, ts)
+                    if doc["content_hash"] in hashes:
+                        out["outcome"] = (
+                            "duplicate (continuation already in a state file)"
+                        )
+                        continue
+                    pend.append(doc)
+                    hashes.add(doc["content_hash"])
+                    out.update(outcome=f"pending: continuation of {over[0][:8]} +{len(add)} sentence(s)",
+                               doc_id=doc["doc_id"], content_hash=doc["content_hash"])  # fmt: skip
+                    changed = True
+                    continue
+                if over:  # the latest continuation with room takes the merge
+                    cur, tid = over[1], over[1]["doc_id"]
                 new = copy.deepcopy(cur)
                 new["content"] = cur["content"].rstrip() + " " + " ".join(add)
                 new["content_hash"] = sha(new["content"])
@@ -691,6 +759,27 @@ def intake(proposal_path, run_path=None, dry_run=False):
                         if dropped
                         else "no-op (nothing new relative to the approved version)"
                     )
+                    continue
+                over = _overflow(base, tid, add, pend)
+                if over:  # an approved document past the cap grows a pending continuation instead
+                    if over[1] is None:
+                        doc = _continuation(base, over[0], add, draft, p, stamp, ts)
+                        if doc["content_hash"] in hashes:
+                            out["outcome"] = (
+                                "duplicate (continuation already in a state file)"
+                            )
+                            continue
+                        pend.append(doc)
+                    else:
+                        doc = copy.deepcopy(over[1])
+                        doc["content"] = doc["content"].rstrip() + " " + " ".join(add)
+                        doc["content_hash"] = sha(doc["content"])
+                        doc["updated_at"] = ts
+                        pend = [doc if r is over[1] else r for r in pend]
+                    hashes.add(doc["content_hash"])
+                    out.update(outcome=f"pending: continuation of {over[0][:8]} +{len(add)} sentence(s)",
+                               doc_id=doc["doc_id"], content_hash=doc["content_hash"])  # fmt: skip
+                    changed = True
                     continue
                 new = copy.deepcopy(base)
                 new["content"] = base["content"].rstrip() + " " + " ".join(add)
