@@ -114,6 +114,11 @@ three settings is ignored.
    reference it; an issue no PR of the operator's touches forms its own **specification**
    group. Drop pure chores (dependency bumps, formatting, lockfiles, CI reruns, one-line issue
    stubs) and record how many were dropped. Keep the `max_groups` largest groups by substance.
+   **Grain:** one group is one system or feature. Never merge unrelated work to reach a count,
+   and split a group of more than ~15 items by subsystem — a 40-item group yields one blurred
+   document where several citable ones belong (2026-11-06). **Coverage:** every discovered item
+   ends in exactly one group, in `dropped_chores`, or beyond `max_groups`; record the three
+   counts in the run file's `coverage` (below) and check they sum to what step 2–3 found.
 5. **Match — mandatory for every group, in one command.** Write one `key<TAB>sentence` line per
    group (the sentence a tailor might search for) to a file, then run
    `/opt/fe/bin/python scripts/match.py < groups.tsv > matches.jsonl`. It embeds every sentence
@@ -153,7 +158,8 @@ three settings is ignored.
        "source"}], "removed_in_verify": [...]}` — skips included, neighbours and all;
    - `run-<stamp>.json` — `{"since", "until_at", "github_prs", "github_commits" (after the 2b
      filters), "github_issues", "gitlab_commits", "groups",
-     "dropped_chores", "proposals": {"enrich", "new", "skip"}, "proposal_sha256",
+     "dropped_chores", "coverage": {"found", "grouped", "chores", "beyond_cap"},
+     "proposals": {"enrich", "new", "skip"}, "proposal_sha256",
      "proposal_bytes", "drafter" (`evidence-group` or `general-purpose`), "advisor" (the advisor
      model if this session offered you an advisor tool, else `none`), "errors": [...]}`.
    **Always write the run file** — with nothing to propose, and when a step failed. It is the
