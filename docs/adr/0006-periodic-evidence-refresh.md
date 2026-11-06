@@ -147,6 +147,38 @@ Re-reading every run log found two weaknesses the dry runs had not surfaced:
 | Groups skipped as "titles only" | 5 of 8 skip reasons said so, though the search had returned each PR body | step 6 reads every full PR body, and the diff of each PR in an attached repository, before any draft or skip; a skip names what was read |
 | Numbers drafted from PR text alone | every run reported "bodies, not diffs" | every number in a draft is listed with its exact source (body, diff path, commit); a number without one is deleted. The routine now attaches the repositories most work lands in, so their diffs are readable over REST |
 
+## 4e. Coverage, 2026-11-06 — commits and specifications join merged PRs
+
+A coverage audit asked whether one client organisation's repositories reached the routine.
+Measured locally with the same REST endpoints the cloud uses:
+
+| Source | Measured | Before | Now |
+|---|---|---|---|
+| Merged PRs the operator authored, any base branch | 621 in that org since 2026-08-08; the search total matched a `pulls` listing to within 1 | ✅ | ✅ step 2a |
+| Direct pushes (one parent, committer ≠ `GitHub`) | **all repositories, August 2026: 1,225 commits on default branches — 930 direct, 256 web-flow PR merges, 39 merge commits**; 11 of the 930 in that org | ❌ | ✅ step 2b |
+| Issues the operator authored (specifications) | 478 in that org since 2026-08-08 | ❌ | ✅ step 2c, as `evidence_kind: specification` |
+| Teammates' PRs the operator only reviewed or specified | 10 reviewed; ≥3 of 300 sampled teammate PRs close an operator issue | ❌ | ❌ by decision: a teammate's code never backs the operator's claim |
+
+- **Copies are deduped by `author.date` + subject, not by repository flag.** A backup
+  repository re-listed 172 of its source's 177 August commits; an archived repository shared
+  0 with either and holds distinct work, so "skip archived" would have lost real evidence.
+- **The watermark is the largest `until_at`, not the newest file.** A backfill run writes an
+  older `until_at`; reading the newest file would rewind the next weekly run.
+- **Volume:** August alone exceeds the search API's 1,000-result cap for commits, so step 2
+  splits a window by week, then by day. A weekly run stays under it.
+- **Weakest assumption:** that the cloud GitHub proxy serves `search/commits`; § 4 proved only
+  `search/issues`. Step 2b records a 403 in the run file instead of failing the run, so the
+  first run settles it.
+- **Attach rule:** attach a repository once it holds the operator's merged work in the trailing
+  90 days, so step 6 can read its patches; review at each amendment. "Attach everything" stays
+  rejected (§ 5).
+
+| Rejected | Why it lost |
+|---|---|
+| `repos/{o}/{r}/commits?author=` per repository | 403 for any repository not attached; needs a repository list in the procedure |
+| `users/{u}/events` | 300 events and 90 days at most — under one month of this volume |
+| An `org:` qualifier or owner allow-list | puts identifiers in the procedure, and the other repositories' direct pushes outnumber the org's 919 to 11 (August) |
+
 ## 5. Rejected
 
 | Option | Why it lost |

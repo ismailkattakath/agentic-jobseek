@@ -9,6 +9,9 @@ Content optimises the **presentation** of real experience. It never invents expe
 - **Personal and open-source evidence proves a *skill*, never an enterprise *metric*.** A
   side project that shows a technique does not license "<N> vendors" or "~<N>% latency" on
   an employer's line.
+- **A specification proves planning, never delivery.** A document with
+  `metadata.evidence_kind: "specification"` (an issue the operator wrote) backs "specified",
+  "designed" or "led the plan for" — never "built", "shipped" or a metric (ADR-0006 § 4e).
 - **Never fabricate** an employer, title, date, degree, certification, metric or skill. Refuse
   even when asked to "just make it fit".
 - **A `pending` row is not evidence.** Retrieval may show it (marked PENDING), but nothing

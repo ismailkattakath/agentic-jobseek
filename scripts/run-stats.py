@@ -46,6 +46,18 @@ def payload(run):
     metrics = [
         gauge("evidence_discover_prs", "{prs}", [({}, run.get("github_prs", 0))], now),
         gauge(
+            "evidence_discover_commits",
+            "{commits}",
+            [({}, run.get("github_commits", 0))],
+            now,
+        ),
+        gauge(
+            "evidence_discover_issues",
+            "{issues}",
+            [({}, run.get("github_issues", 0))],
+            now,
+        ),
+        gauge(
             "evidence_discover_groups", "{groups}", [({}, run.get("groups", 0))], now
         ),
         gauge(

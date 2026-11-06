@@ -21,7 +21,8 @@ ledger, the single master and the theme trial: `docs/adr/0003-job-schema-claims-
 How retrieval is measured and why it is hybrid: `docs/adr/0004-retrieval-measured.md`.
 The résumé PDF theme — Typst, single column, Material 3, a gated text layer: `docs/adr/0005-own-theme.md`.
 The weekly evidence discovery — a cloud routine proposes, the cache on Neon:
-`docs/adr/0006-periodic-evidence-refresh.md`; the routine's procedure: `routines/evidence-discover.md`
+`docs/adr/0006-periodic-evidence-refresh.md` (§ 4e: what it covers — merged PRs, direct commits,
+authored issues as specifications); the routine's procedure: `routines/evidence-discover.md`
 (was `evidence-refresh`). Evidence review at the point of use — one schema, three state files,
 one sync, `doc_id` identity: `docs/adr/0007-evidence-review-at-point-of-use.md` (supersedes
 ADR-0006 § 1.3 and its whole-file apply).
