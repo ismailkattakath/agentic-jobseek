@@ -138,6 +138,9 @@ def fill(table, col, vec, prefix, spec):
     for name in (table, col, vec):
         if not name.replace("_", "").isalnum():
             sys.exit(f"error: bad identifier {name!r}")
+    csv.field_size_limit(
+        sys.maxsize
+    )  # a merged pending document passed 128 KB (2026-11-06)
     rows = list(
         csv.reader(
             io.StringIO(
