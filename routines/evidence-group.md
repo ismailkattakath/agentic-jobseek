@@ -10,7 +10,9 @@ attribution, alternate persona). They are not repeated here, so there is one cop
 
 ## Input (paths given in your prompt)
 
-- `groups/<key>.json` — the group's items with FULL bodies and messages
+- `groups/<key>.json` — the group's items with FULL bodies and messages. GitLab items arrive
+  complete (you have no GitLab connector); a `new` document that rests on any of them sets
+  `metadata.persona: "alt"`
 - `matches.jsonl` — your group's line has its three neighbours (`doc_id`, `content_hash`,
   `status`, title, cosine)
 - `neighbours.jsonl` — the neighbours' full text

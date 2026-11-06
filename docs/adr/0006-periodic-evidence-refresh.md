@@ -278,6 +278,27 @@ one byte-exact file needs no splitting.
 | rclone + service account | service accounts hold no My Drive storage, so the inbox would move to a Shared Drive |
 | Slimmer proposals / fewer groups | the model still retypes; the failure becomes rarer, not impossible |
 
+### 4h.1 First clean run and its three follow-ups, 2026-11-06
+
+The Aug 1–11 window then ran end to end: 27 drafts (11 new, 16 enrich), uploaded byte-exact
+(fingerprint and byte count equal on the Drive copy), taken in as pending, all embedded, in
+**20 min**. Seven of 27 drafters reported 74K–194K tokens (mean ~108K), so a 10-day window is on
+the order of **3M drafter tokens** (estimated from that sample). Hybrid nDCG@10 stayed at
+**0.711**. Follow-ups:
+
+- **GitLab drafts came from titles alone** — subagents do not see the routine's connector. Step 3
+  now fetches each commit's full message (and diff) with `get_commit` into the group file.
+- **Alternate-persona marker** — 45 approved and 3 pending documents from the alternate GitLab
+  account's projects lacked `metadata.persona: "alt"`, identified by `repo` (and by gitlab.com
+  evidence URLs) after the operator named which projects are that account's; mixed-repo
+  documents are marked too (the conservative choice). Metadata only: no content hash changed,
+  no re-embedding.
+- **Repositories attached** for diffs: the two busiest repositories of the operator's own
+  venture org, per the § 4e attach rule.
+- **Embedding** — merged pending documents outgrew Ollama's 2,048-token window (HTTP 500);
+  `scripts/embed.py` moved to `/api/embed` with `truncate`, matching the cloud's fastembed
+  `max_length=2048` (cosine 1.000000 on stored rows).
+
 ## 5. Rejected
 
 | Option | Why it lost |

@@ -103,7 +103,12 @@ three settings is ignored.
    error text in the run file (it is how the operator learns the connector needs
    re-authorising) and continue without GitLab. Otherwise, with the connector: the current user, its projects, and each
    project's commits in the window authored by that user (merge requests need a project or
-   group, and most of that work is direct pushes). Keep project, short SHA, date and message.
+   group, and most of that work is direct pushes). Keep project, short SHA, date and the FULL
+   message: `list_commits` returns titles only, so fetch each kept commit with the connector's
+   `get_commit` (and its diff, when the connector offers one). **Drafters cannot call the
+   connector** — whatever a GitLab group's drafter needs must already be in its group file, and
+   every GitLab item there carries `"persona": "alt"` (2026-11-06: three drafts came from
+   titles alone).
 4. **Group.** Cluster the items by repository, then by subsystem or feature — "ten commits on
    one feature are one entry". An issue joins the group of the operator's own PRs that close or
    reference it; an issue no PR of the operator's touches forms its own **specification**
@@ -119,7 +124,7 @@ three settings is ignored.
    choose neighbours by browsing titles, and never hand-copy a vector into a connector call.
 6. **Dispatch — one drafter subagent per group; you do not read the bodies yourself.** Save
    everything a drafter needs to the scratchpad first: each group's items with their FULL bodies
-   and messages (`groups/<key>.json`), `matches.jsonl` from step 5, and the neighbours' full text
+   and messages, and the diffs of GitLab commits, which a drafter cannot fetch (`groups/<key>.json`), `matches.jsonl` from step 5, and the neighbours' full text
    (`neighbours.jsonl`). Then, for each group, start the **`evidence-group`** subagent (Agent tool)
    with a short prompt: the group key, those three paths, the window, and the output path
    `drafts/<key>.json`. Run up to 5 at once. If the `evidence-group` type is not offered, use
