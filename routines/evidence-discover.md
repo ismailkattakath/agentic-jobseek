@@ -77,6 +77,8 @@ three settings is ignored.
      `gh api 'search/issues?q=author:$JOBSEEK_GITHUB_AUTHOR+is:pr+is:merged+merged:<since>..<until_at>&…'`.
      It covers every base branch (`develop` included). Keep repo, number, title, URL, merge date
      and the FULL body — skipping or drafting from a truncated body is how evidence gets lost.
+     Never cut a body or message with `head -c`, `.[0:N]` or similar; when one is too long to
+     read inline, write it to a scratch file and read the file.
    - **2b. Direct commits** —
      `gh api 'search/commits?q=author:$JOBSEEK_GITHUB_AUTHOR+committer-date:<since>..<until_at>&…'`.
      It searches default branches only. Keep only commits with ONE parent and a
