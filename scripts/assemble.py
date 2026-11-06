@@ -43,6 +43,28 @@ SCHEMA = json.load(
         encoding="utf-8",
     )
 )
+# A `new` draft becomes an evidence document at intake, so it is checked against that ONE schema
+# (a copy of its fields here missed metadata.evidence on 2026-11-06), minus the fields intake fills.
+INTAKE_FILLS = {"doc_id", "content_hash", "created_at", "updated_at"}
+DOC = json.load(
+    open(
+        os.path.join(HERE, "..", "schemas", "evidence-doc.schema.json"),
+        encoding="utf-8",
+    )
+)
+DOC_DRAFT = {**DOC, "required": [r for r in DOC["required"] if r not in INTAKE_FILLS]}
+
+
+def check(d):
+    bad = schema_mod.validate(SCHEMA, d)
+    if (
+        isinstance(d, dict)
+        and d.get("action") == "new"
+        and isinstance(d.get("draft"), dict)
+    ):
+        draft = {k: v for k, v in d["draft"].items() if k not in INTAKE_FILLS}
+        bad += ["draft: " + e for e in schema_mod.validate(DOC_DRAFT, draft)]
+    return bad
 
 
 def stamp_for(until_at, taken):
@@ -72,9 +94,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.check:
         try:
-            bad = schema_mod.validate(
-                SCHEMA, json.load(open(a.check, encoding="utf-8"))
-            )
+            bad = check(json.load(open(a.check, encoding="utf-8")))
         except (OSError, json.JSONDecodeError) as e:
             bad = [f"unreadable: {e}"]
         print("valid" if not bad else "INVALID\n" + "\n".join(bad))
@@ -101,7 +121,7 @@ def main(argv=None):
         except json.JSONDecodeError as e:
             errors.append(f"draft not JSON: {key} ({e})")
             continue
-        bad = schema_mod.validate(SCHEMA, d)
+        bad = check(d)
         if d.get("group") != key:
             bad.append(f"group is {d.get('group')!r}, expected {key!r}")
         if bad:

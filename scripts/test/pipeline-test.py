@@ -68,4 +68,17 @@ with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
     assert run_file["coverage"]["found"] == sum(
         len(fx[k]) for k in ("prs", "issues", "commits", "gitlab")
     )
+    # --check: a `new` draft must satisfy the evidence-document schema itself, not a copy of it
+    # (metadata.evidence as objects passed --check and failed intake, 2026-11-06).
+    new = {"group": "acme-new", "action": "new", "target_doc_id": None, "neighbours": [], "claim": "Jane Doe built the Acme widget cache.", "sources": ["https://example.com/acme/widgets/pull/1"], "read": [], "numbers": [], "removed_in_verify": [],
+           "draft": {"doc_id": "", "content_hash": "", "title": "Acme widget cache", "content": "Built the widget cache.", "doc_type": "contribution", "source_class": "personal-project", "company": "personal", "repo": "acme/widgets", "period": "2026-01", "skills": [], "technologies": [], "domains": [], "author_confidence": "operator", "metadata": {"evidence": ["https://example.com/acme/widgets/pull/1"]}}}  # fmt: skip
+    chk = os.path.join(a, "check.json")
+    json.dump(new, open(chk, "w"))
+    assert run(os.path.join(SCRIPTS, "assemble.py"), "--check", chk).strip() == "valid"
+    new["draft"]["metadata"]["evidence"] = [
+        {"url": "https://example.com/acme/widgets/pull/1"}
+    ]
+    json.dump(new, open(chk, "w"))
+    r = subprocess.run([sys.executable, os.path.join(SCRIPTS, "assemble.py"), "--check", chk], capture_output=True, text=True)  # fmt: skip
+    assert r.returncode == 1 and "metadata/evidence/0" in r.stdout, r.stdout
 print("pipeline-test: ok")
