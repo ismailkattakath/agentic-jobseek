@@ -403,8 +403,17 @@ def _archive(files, bucket, reason=None):
     return moved
 
 
+# The store's convention for a non-employer document's `company` (measured 2026-11-06: 128 of the
+# personal-project rows say "personal", 35 of the oss-contribution rows say "oss"). An enterprise
+# draft without a company stays invalid: the employer is a fact, never derived.
+_COMPANY_BY_CLASS = {"personal-project": "personal", "oss-contribution": "oss"}
+
+
 def _new_doc(p, draft, stamp, ts):
     content = draft["content"]
+    source_class = draft.get("source_class") or TIERS.get(
+        draft.get("tier"), "personal-project"
+    )
     meta = dict(draft.get("metadata") or {})
     meta["evidence"] = _union(meta.get("evidence"), p.get("sources"))
     meta["origin"] = f"evidence-discover {stamp}"
@@ -422,8 +431,8 @@ def _new_doc(p, draft, stamp, ts):
         "title": draft["title"],
         "content": content,
         "doc_type": draft.get("doc_type", "contribution"),
-        "source_class": draft.get("source_class") or TIERS.get(draft.get("tier"), "personal-project"),
-        "company": draft.get("company", ""),
+        "source_class": source_class,
+        "company": draft.get("company") or _COMPANY_BY_CLASS.get(source_class),
         "repo": draft.get("repo", ""),
         "period": draft.get("period", ts[:7]),
         "skills": draft.get("skills", []),

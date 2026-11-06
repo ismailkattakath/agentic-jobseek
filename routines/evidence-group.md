@@ -46,7 +46,8 @@ there instead. **Never stop early to save context**: your whole context is this 
      stands alone (no "also", no pronoun pointing at the base document);
    - `new` — no existing document covers it: a full line in the `add-evidence` skill's schema
      (`.claude/skills/add-evidence/SKILL.md`) with every field — `title`, `content`, `doc_type`,
-     `source_class` (`enterprise` · `personal-project` · `oss-contribution`), `company`, `repo`,
+     `source_class` (`enterprise` · `personal-project` · `oss-contribution`), `company` (a string:
+     the employer for `enterprise`, `"personal"` or `"oss"` otherwise — never null), `repo`,
      `period`, `skills`, `technologies`, `domains`, `author_confidence`, `metadata` — and
      `content_hash` and `doc_id` left empty (intake mints them);
    - `skip` — nothing evidence-worthy, decided AFTER step 1: the reason names what the bodies
