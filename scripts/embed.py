@@ -11,8 +11,10 @@ cannot reach the local Ollama, so no script embeds in SQL any more.
   pgenv   print the connection as `export PG*=…` lines for `eval` (scripts/db-env.sh does this),
           so no psql call ever carries the connection string — or its password — in argv.
 
-Calls Ollama exactly as the retired in-database embed() did — POST /api/embeddings
-{"model": "nomic-embed-text", "prompt": ...} — so new vectors match the stored ones. Parity with
+Calls Ollama's POST /api/embed {"model": "nomic-embed-text", "input": ..., "truncate": true}.
+It replaced the retired in-database embed()'s /api/embeddings on 2026-11-06, when merged pending
+documents outgrew the 2,048-token window; the vectors point the same way (cosine 1.000000 on
+stored rows), only unit-length, and every query ranks by cosine. Parity with
 the cloud run's fastembed nomic-embed-text-v1.5 was measured 2026-11-02 at cosine
 0.999999–1.000001 against these vectors. The connection string comes from JOBSEEK_DB_URI and
 reaches psql only as PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE/… in its environment: a process
@@ -94,13 +96,17 @@ def db_env():
 
 
 def embed(text):
+    # /api/embed with truncate, not the legacy /api/embeddings: a document longer than the
+    # model's 2,048-token window is cut to it, as the cloud's fastembed (max_length=2048) does,
+    # instead of failing with HTTP 500. Vectors come back unit-length; every query ranks by
+    # cosine (<=>), so the 2026-11-06 check showed cosine 1.000000 against the old vectors.
     req = urllib.request.Request(
-        f"{OLLAMA}/api/embeddings",
-        data=json.dumps({"model": MODEL, "prompt": text}).encode(),
+        f"{OLLAMA}/api/embed",
+        data=json.dumps({"model": MODEL, "input": text, "truncate": True}).encode(),
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(req, timeout=120) as r:  # noqa: S310 — loopback Ollama
-        vec = json.load(r)["embedding"]
+        vec = json.load(r)["embeddings"][0]
     if len(vec) != 768:
         sys.exit(f"error: {MODEL} returned {len(vec)} dimensions, expected 768")
     return vec
