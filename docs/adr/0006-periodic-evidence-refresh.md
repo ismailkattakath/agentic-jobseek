@@ -170,7 +170,7 @@ Measured locally with the same REST endpoints the cloud uses:
   `search/issues`. Step 2b records a 403 in the run file instead of failing the run, so the
   first run settles it.
 - **Attach rule:** attach a repository once it holds the operator's merged work in the trailing
-  90 days, so step 6 can read its patches; review at each amendment. "Attach everything" stays
+  90 days, so a drafter (routines/evidence-group.md) can read its patches; review at each amendment. "Attach everything" stays
   rejected (§ 5).
 
 | Rejected | Why it lost |
@@ -178,6 +178,40 @@ Measured locally with the same REST endpoints the cloud uses:
 | `repos/{o}/{r}/commits?author=` per repository | 403 for any repository not attached; needs a repository list in the procedure |
 | `users/{u}/events` | 300 events and 90 days at most — under one month of this volume |
 | An `org:` qualifier or owner allow-list | puts identifiers in the procedure, and the other repositories' direct pushes outnumber the org's 919 to 11 (August) |
+
+## 4f. One drafter subagent per group, 2026-11-06
+
+The first full-visibility backfill pass (2026-08-01..08-11: 97 PRs, 65 issues, 110 direct
+commits) finished **5 of 13 groups** and recorded the rest as "INCOMPLETE RUN (context budget)".
+Its own measurement says the budget was not the cause: every PR and issue body together was
+212,427 characters (~53K tokens), the session ran 209 s over 23 turns with no autocompaction,
+and Sonnet 5.x sessions run with a 1M-token window by default (code.claude.com model-config).
+The model stopped early by choice.
+
+- **Fix, two parts:** the orchestrator (Sonnet 5.5) discovers, groups and matches, then starts
+  one `evidence-group` subagent per group (`.claude/agents/evidence-group.md`: `model: opus`,
+  `effort: high`, both documented subagent frontmatter keys), which follows
+  `routines/evidence-group.md`. And both procedures say "never stop early to save context".
+  Volume now sets the number of drafters, not whether a run fits.
+- **Why Opus drafts and Sonnet orchestrates:** drafting is where the evidence gate's judgment
+  lives; orchestration is mechanical. Opus 5.5 lists at 2× Sonnet 5.5 per token
+  (platform.claude.com pricing), paid only on the reading-heavy part.
+- **Loading the agent:** a session with several repositories starts above the clones, and the
+  docs only promise repo `.claude/agents/` loading in general terms. The environment's setup
+  script symlinks the file into `~/.claude/agents/` (user scope, read at start; a symlink, so
+  the cached snapshot never holds a stale copy). Fallback: `general-purpose` with
+  `model: "opus"`, recorded in the run file's `drafter`.
+- **Advisor (operator's choice to try):** the advisor tool is experimental and undocumented for
+  routines, and a multi-repo session ignores repo settings except `enabledPlugins`. The setup
+  script writes `advisorModel: "opus"` to the user settings, which Claude Code reads at start
+  (Sonnet 5.5 accepts Opus 5+ as advisor; subagents inherit it). The run file's `advisor` field
+  records whether the session was offered one; `none` means the attempt failed silently.
+
+| Rejected | Why it lost |
+|---|---|
+| Smaller windows / daily cron | volume still decides whether a run fits; the early stop was not about volume |
+| A per-run group cap with resume state | adds state to the procedure for a limit the run never hit |
+| Opus for the whole session | 2× the cost on orchestration that needs no judgment |
 
 ## 5. Rejected
 

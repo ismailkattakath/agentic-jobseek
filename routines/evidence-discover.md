@@ -18,9 +18,9 @@ file plus a run file in the Drive inbox.
 | `JOBSEEK_NEON_PROJECT_ID` | Neon project holding `public.evidence` (read-only here) |
 | `JOBSEEK_NEON_SQL_HOST` | the Neon endpoint host `scripts/match.py` queries over HTTPS; the environment's network secret for that host carries the read-only role's connection string |
 | `JOBSEEK_GITHUB_AUTHOR` | GitHub login whose merged pull requests are evidence |
-| `JOBSEEK_HEARTBEAT_URL` | dead man's switch endpoint pinged at the end of the run (step 10); optional. **SECRET** — it embeds the ping key: never echo, print or quote it |
-| `JOBSEEK_OTLP_ENDPOINT` | Grafana Cloud OTLP base URL (`…/otlp`) for the run-stats push (step 11); optional |
-| `JOBSEEK_OTLP_INSTANCE` | Grafana Cloud instance id; optional. Together with the endpoint it arms step 11. The token is NOT a variable: the environment's network secret injects the `Authorization` header |
+| `JOBSEEK_HEARTBEAT_URL` | dead man's switch endpoint pinged at the end of the run (step 8); optional. **SECRET** — it embeds the ping key: never echo, print or quote it |
+| `JOBSEEK_OTLP_ENDPOINT` | Grafana Cloud OTLP base URL (`…/otlp`) for the run-stats push (step 9); optional |
+| `JOBSEEK_OTLP_INSTANCE` | Grafana Cloud instance id; optional. Together with the endpoint it arms step 9. The token is NOT a variable: the environment's network secret injects the `Authorization` header |
 | `FASTEMBED_CACHE_PATH` | the cached nomic-embed-text-v1.5 model (setup script) |
 
 **Variables are not expanded inside connector calls.** Read each value with `echo "$NAME"` in
@@ -115,44 +115,19 @@ three settings is ignored.
    three nearest documents — across **all three states** (`approved`, `pending`, `rejected`) —
    with `doc_id`, full 64-character `content_hash`, `status`, title and cosine. Never
    choose neighbours by browsing titles, and never hand-copy a vector into a connector call.
-6. **Read before deciding — every group, before any draft or skip.** Read the full body of
-   every PR and issue in the group, and the full message of every commit. For each PR whose repository is cloned in this session (the routine
-   attaches the usual ones), also read what it changed — the **patches**, not only the file list: `gh api
-   'repos/{owner}/{repo}/pulls/{n}/files?per_page=100' --jq '.[] | .filename, .patch'` (REST;
-   GraphQL is blocked), or
-   `git log -p` in the clone after `git fetch --shallow-since=<since>`. A repository that is not
-   cloned answers 403 there — then the body is what you have, and drafts from it carry no
-   number the body does not state. Record in each proposal `"read"`: the bodies and diffs you
-   actually read.
-7. **Draft.** For each group propose ONE action:
-   - `enrich` — the group adds facts to an existing document (same system, same work): give its
-     `target_doc_id` (the neighbour's `doc_id`, which intake matches on; for a pending target
-     it merges in place), and `"draft": {"add_sentences": ["…", "…"], "period_end": "YYYY-MM",
-     "commit_refs": ["<sha or PR url>", …]}` — **an object, exactly these keys**; each sentence
-     stands alone (no "also", no pronoun pointing at the base document);
-   - `new` — no existing document covers it: a full line in the `add-evidence` skill's schema
-     (`.claude/skills/add-evidence/SKILL.md`) with every field — `title`, `content`, `doc_type`,
-     `source_class` (`enterprise` · `personal-project` · `oss-contribution`), `company`, `repo`,
-     `period`, `skills`, `technologies`, `domains`, `author_confidence`, `metadata` — and
-     `content_hash` and `doc_id` left empty (intake mints them);
-   - `skip` — nothing evidence-worthy, decided AFTER step 6: the reason names what the bodies
-     and diffs showed. "Titles only" is never a reason — read the bodies first.
-   **A specification group** (issues only, step 4) drafts as `architecture_decision` or
-   `contribution` with `metadata.evidence_kind: "specification"`; an `enrich` from one adds
-   sentences that say "specified", "planned" or "decided", never "built" or "shipped" (Rules: a
-   specification is not an implementation).
-   **Dedupe against the neighbours' `status` (ADR-0007 § 2.6):**
-   - a **rejected** neighbour that covers the group means `skip`, with the reason
-     "rejected: <title>" — rejected work is not proposed again;
-   - a **pending** neighbour that covers the group means `enrich` that pending document
-     (`target_doc_id` = its `doc_id`): new work on a pending item extends it, it does not
-     become a second pending document;
-   - an **approved** neighbour is `enrich` as before; no neighbour covers it is `new`.
-   Choose by reading the neighbours, not by a score cut-off; the cut is what this dry period
-   measures (ADR-0006 § 1.5).
-8. **Verify.** Re-read each draft against the items it cites. Delete any sentence you cannot
-   trace; downgrade anything only partly supported to `[inferred]`. Record what you removed.
-9. **Write — the file you computed, byte for byte.** Build both files with a script in your
+6. **Dispatch — one drafter subagent per group; you do not read the bodies yourself.** Save
+   everything a drafter needs to the scratchpad first: each group's items with their FULL bodies
+   and messages (`groups/<key>.json`), `matches.jsonl` from step 5, and the neighbours' full text
+   (`neighbours.jsonl`). Then, for each group, start the **`evidence-group`** subagent (Agent tool)
+   with a short prompt: the group key, those three paths, the window, and the output path
+   `drafts/<key>.json`. Run up to 5 at once. If the `evidence-group` type is not offered, use
+   `general-purpose` with `model: "opus"` and the same prompt, and say so in the run file's
+   `drafter` field. Each drafter follows `routines/evidence-group.md` (reading, drafting,
+   verifying) and writes ONE proposal object; you read only those files, never re-draft them.
+   A group whose drafter failed is listed in `errors` with the failure, never drafted by you.
+   **Never stop early to save context.** Sessions run with a 1M-token window and the drafters
+   hold the bodies, not you. Stop only on a real error, and record it.
+7. **Write — the file you computed, byte for byte.** Build both files with a script in your
    scratchpad, never by hand. Then compute the proposal's content fingerprint
    (`python3 scripts/proposal-fingerprint.py proposal-<stamp>.jsonl`) and its byte count
    (`wc -c`) and record them in the run file as `proposal_sha256` and `proposal_bytes`. Upload with the
@@ -168,10 +143,11 @@ three settings is ignored.
    - `run-<stamp>.json` — `{"since", "until_at", "github_prs", "github_commits" (after the 2b
      filters), "github_issues", "gitlab_commits", "groups",
      "dropped_chores", "proposals": {"enrich", "new", "skip"}, "proposal_sha256",
-     "proposal_bytes", "errors": [...]}`.
+     "proposal_bytes", "drafter" (`evidence-group` or `general-purpose`), "advisor" (the advisor
+     model if this session offered you an advisor tool, else `none`), "errors": [...]}`.
    **Always write the run file** — with nothing to propose, and when a step failed. It is the
    record that the run happened and the next run's watermark; a run without one is invisible.
-10. **Heartbeat — last, after the run file is uploaded.** Check the variable is set without
+8. **Heartbeat — last, after the run file is uploaded.** Check the variable is set without
     printing it (see Inputs). If it is empty or unset, skip this step and say so in
     the report; do not fail the run. Otherwise ping it, appending `/fail` when the run file's
     `errors` is non-empty (errors are failures of THIS routine's steps — step 3's rule decides
@@ -180,12 +156,12 @@ three settings is ignored.
     `curl -fsS -m 10 --retry 3 "$JOBSEEK_HEARTBEAT_URL/fail"` (errors). A failed ping is
     recorded in the report, never retried in a loop. No ping inside the grace period is the
     operator's signal that the routine did not run (ADR-0007 § 5).
-11. **Run stats — last, best-effort, after the heartbeat.** Run, from the agentic-jobseek checkout,
-    `python3 scripts/run-stats.py <path to the run-<stamp>.json you wrote in step 9>` and copy its ONE
+9. **Run stats — last, best-effort, after the heartbeat.** Run, from the agentic-jobseek checkout,
+    `python3 scripts/run-stats.py <path to the run-<stamp>.json you wrote in step 7>` and copy its ONE
     output line into the report. It builds the OTLP payload from the run file (no number retyped),
     POSTs it to `$JOBSEEK_OTLP_ENDPOINT/v1/metrics`, sends no `Authorization` header (the
     environment's network secret adds it — you hold no token and never look for one), skips when the
     OTLP variables are unset, and always exits 0. Never add its result to `errors` or the run file:
     this step observes the run, it is not part of it. Do not hand-build the payload or call curl.
-12. **Report.** End with six lines: window, counts, files written, errors, heartbeat sent
+10. **Report.** End with six lines: window, counts, files written, errors, heartbeat sent
     (ok / fail / skipped: variable unset), run stats (HTTP code / skipped: variables unset).

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """run-stats.py RUN_FILE [--dry-run]
 
-Step 11 of routines/evidence-discover.md: push one OTLP metrics payload describing a discovery run
-to $JOBSEEK_OTLP_ENDPOINT/v1/metrics, built from the run file step 9 wrote (no number retyped).
+Step 9 of routines/evidence-discover.md: push one OTLP metrics payload describing a discovery run
+to $JOBSEEK_OTLP_ENDPOINT/v1/metrics, built from the run file step 7 wrote (no number retyped).
 The run's start is its `until_at` (step 1 sets until_at to the run's start time), so no side file
 is needed. Sends NO Authorization header: in the cloud environment a network secret injects it.
 
