@@ -484,16 +484,30 @@ def _sentences(draft, base_content, rejected=()):
     return add, dropped
 
 
+_PART_RE = re.compile(r"proposal-[0-9A-Za-z]+\.p[0-9]+\.jsonl")
+
+
+def _part_path(inbox, part):
+    """The inbox path of one `proposal_parts` entry, or None. The run file is routine output, so a
+    name is never trusted as a path: only a plain part name directly inside the inbox passes."""
+    name = part.get("file") if isinstance(part, dict) else None
+    if not (isinstance(name, str) and _PART_RE.fullmatch(name)):
+        return None
+    path = os.path.join(inbox, name)
+    real_inbox = os.path.realpath(inbox) + os.sep
+    return path if os.path.realpath(path).startswith(real_inbox) else None
+
+
 def _read_parts(inbox, parts):
     """A run file's `proposal_parts` -> (paths, proposals) or raise StoreError. Each part carries
     its own content fingerprint, because the routine uploads each part in its own connector call
     (one call cannot carry a large proposal verbatim; ADR-0006 § 4g)."""
     paths, proposals = [], []
     for i, part in enumerate(parts):
-        name = part.get("file", "") if isinstance(part, dict) else ""
-        if not re.fullmatch(r"proposal-[0-9A-Za-z]+\.p[0-9]+\.jsonl", name):
-            raise StoreError(f"proposal_parts[{i}]: bad file name {name!r}")
-        path = os.path.join(inbox, name)
+        path = _part_path(inbox, part)
+        if path is None:
+            raise StoreError(f"proposal_parts[{i}]: not a part file name in the inbox")
+        name = os.path.basename(path)
         have = _fp.fingerprint(path)
         if part.get("sha256") != have:
             raise StoreError(
@@ -554,9 +568,12 @@ def intake(proposal_path, run_path=None, dry_run=False):
             have, proposals = None, None
             rep["reason"] = f"proposal parts unusable ({e})"
             files = [
-                os.path.join(os.path.dirname(run_path), x.get("file", ""))
-                for x in run["proposal_parts"]
-                if isinstance(x, dict)
+                q
+                for q in (
+                    _part_path(os.path.dirname(run_path), x)
+                    for x in run["proposal_parts"]
+                )
+                if q
             ] + [run_path]
     else:
         try:
@@ -807,11 +824,8 @@ def intake_inbox(dry_run=False):
             parts = None
         if parts:
             # Taken in only when every part has synced; a missing one is still on its way.
-            if all(
-                isinstance(x, dict)
-                and os.path.exists(os.path.join(inbox, x.get("file", "")))
-                for x in parts
-            ):
+            paths = [_part_path(inbox, x) for x in parts]
+            if all(paths) and all(os.path.exists(q) for q in paths):
                 reports.append(intake(proposal, run_path, dry_run=dry_run))
         elif os.path.exists(proposal):
             reports.append(intake(proposal, run_path, dry_run=dry_run))
