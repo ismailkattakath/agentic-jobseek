@@ -23,11 +23,12 @@ file plus a run file in the Drive inbox.
 | `JOBSEEK_OTLP_INSTANCE` | Grafana Cloud instance id; optional. Together with the endpoint it arms step 7. The token is NOT a variable: the environment's network secret injects the `Authorization` header |
 | `JOBSEEK_INBOX_DROP_URL` | the Apps Script drop's web-app URL that `scripts/inbox-upload.py` POSTs to (step 5) |
 | `JOBSEEK_INBOX_DROP_TOKEN` | the drop's shared token. **SECRET** — it lets anyone write into the drop folder: never echo, print or quote it; only the uploader reads it |
+| `JOBSEEK_GITLAB_TOKEN` | a read-only (`read_api`, expiring) GitLab token that `prepare.py` reads. **SECRET** — never echo, print or quote it |
 | `FASTEMBED_CACHE_PATH` | the cached nomic-embed-text-v1.5 model (setup script) |
 
 **Variables are not expanded inside connector calls.** Read each value with `echo "$NAME"` in
 Bash first, then pass the literal value to the connector (a call given `${JOBSEEK_NEON_PROJECT_ID}` fails).
-**Except `JOBSEEK_HEARTBEAT_URL` and `JOBSEEK_INBOX_DROP_TOKEN`:** never echo them (it carries a secret, and the session log keeps
+**Except `JOBSEEK_HEARTBEAT_URL`, `JOBSEEK_INBOX_DROP_TOKEN` and `JOBSEEK_GITLAB_TOKEN`:** never echo them (it carries a secret, and the session log keeps
 every command's output). Check it only with `[ -n "$JOBSEEK_HEARTBEAT_URL" ] && echo set || echo unset`;
 no connector needs it.
 
@@ -52,8 +53,8 @@ three settings is ignored.
 
 ## Steps
 
-Every mechanical step is a repo script; you do the two things a script cannot — reach the
-Drive and GitLab connectors — and run the scripts in order (ADR-0006 § 4j). Work in one
+Every mechanical step is a repo script; you do the one thing a script cannot — list the
+Drive inbox with its connector — and run the scripts in order (ADR-0006 § 4j). Work in one
 scratch directory `S`; never read group bodies or drafts yourself.
 
 1. **Window — UTC timestamps, never bare dates.** List `JOBSEEK_INBOX_FOLDER_ID`, its `drop/`
@@ -62,16 +63,16 @@ scratch directory `S`; never read group bodies or drafts yourself.
    else 7 days before now. `until_at` is the fire text's `until`, else this run's start time
    (`date -u +%Y-%m-%dT%H:%M:%SZ`). Note every existing run file's stamp (`run-<stamp>.json`)
    as `TAKEN`, comma-separated.
-2. **GitLab — the connector named `gitlab` only** (tools `mcp__gitlab__*`; any other GitLab MCP
-   is not this routine's, and its failures are not errors). Call `get_user` with `me: true`
-   first — if THAT fails, keep its exact error text for step 5 and continue with an empty list.
-   Otherwise list the user's projects and each project's commits in the window, then fetch
-   every commit with `get_commit` (full message and diff: `list_commits` gives titles only).
-   Write `S/gitlab.json` as `[{project, sha, date, message, url, diff}]` with a script — never
-   retype the content.
+2. **GitLab — a script, never the connector.** Step 3's `prepare.py` fetches every member
+   project's default-branch commits in the window, each with its full message and diff, using
+   `$JOBSEEK_GITLAB_TOKEN` (read-only, `read_api`) and writes `S/gitlab.json`. Do nothing here
+   but check the variable is set without printing it (see Inputs). A connector cannot do this
+   step: its output reaches your context, never a file, so the diffs could only be retyped
+   (ADR-0006 § 4k). If the token is missing or GitLab fails, `prepare.py` puts the error in the
+   run file's `errors`; do not fall back to the connector.
 3. **Prepare — two script phases, one sentence step of yours between them.**
    - `python3 scripts/prepare.py --phase group --since <since> --until-at <until_at> --out S
-     --gitlab S/gitlab.json --max-groups <max_groups>` discovers on GitHub (paged, split under
+     --max-groups <max_groups>` discovers on GitHub and GitLab (paged, split under
      the 1,000-result cap), groups (`scripts/group.py`) and writes `S/titles.txt`: one line per
      group, `key<TAB>what its items did`.
    - **Write `S/sentences.tsv` yourself**, one `key<TAB>sentence` line per line of `titles.txt`,
@@ -94,7 +95,7 @@ scratch directory `S`; never read group bodies or drafts yourself.
    with the same prompt shape, at most five at a time, and pass `--drafter agent-tool` in step 5.
    Never draft, repair or re-shape a draft yourself; a missing or invalid one is reported.
 5. **Assemble and upload —** `python3 scripts/assemble.py --scratch S --since <since>
-   --until-at <until_at> --taken <TAKEN> [--gitlab-error "<step 2's error>"] [--note "…"]`.
+   --until-at <until_at> --taken <TAKEN> [--note "…"]`.
    It validates every draft, builds `proposal-<stamp>.jsonl` and `run-<stamp>.json` (with
    `coverage`, `errors`, the fingerprint) and prints their paths. Then
    `python3 scripts/inbox-upload.py <proposal> <run>` — run file LAST, or the run file alone when
@@ -103,8 +104,7 @@ scratch directory `S`; never read group bodies or drafts yourself.
 6. **Heartbeat — last, after the run file is uploaded.** Check the variable is set without
     printing it (see Inputs). If it is empty or unset, skip this step and say so in
     the report; do not fail the run. Otherwise ping it, appending `/fail` when the run file's
-    `errors` is non-empty (errors are failures of THIS routine's steps — step 2's rule decides
-    what counts for GitLab):
+    `errors` is non-empty (errors are failures of THIS routine's steps):
     `curl -fsS -m 10 --retry 3 "$JOBSEEK_HEARTBEAT_URL"` (success) or
     `curl -fsS -m 10 --retry 3 "$JOBSEEK_HEARTBEAT_URL/fail"` (errors). A failed ping is
     recorded in the report, never retried in a loop. No ping inside the grace period is the

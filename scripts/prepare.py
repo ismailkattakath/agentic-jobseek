@@ -11,8 +11,14 @@ window do the same thing:
      API's 1,000-result cap is split in half by time until each part fits. 30 search calls a
      minute is the limit, so calls are spaced 2.2 s apart. Writes prs.json, commits.json,
      issues.json and discovery.json (counts, errors).
-  2. GROUP — scripts/group.py over those files and --gitlab (the routine fetches GitLab with its
-     connector; a script cannot).
+     GitLab too, when $JOBSEEK_GITLAB_TOKEN (a read_api token) is set — or, on the operator's
+     Mac, through a logged-in `glab`: every member project's default-branch commits in the
+     window (merges and deletion-scheduled projects skipped), each with its full message, the
+     changed paths and the diff (capped at GITLAB_DIFF_CAP characters). Writes gitlab.json. A
+     model cannot do this step: a connector's output reaches its context, never a file, so it
+     could only write the diffs by retyping them (no run ever did — ADR-0006 § 4k).
+  2. GROUP — scripts/group.py over those files and gitlab.json (or --gitlab, a file the caller
+     already has).
   3. SENTENCE — one match sentence per group from its subsystem and top item titles, unless
      --sentences gives key<TAB>sentence lines (the model-written fallback).
   4. MATCH — scripts/match.py (fastembed in the cloud: --match-python /opt/fe/bin/python).
@@ -27,9 +33,13 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SEARCH_GAP_S = 2.2
@@ -90,6 +100,85 @@ class Search:
                 break
             items += got
         return items
+
+
+GITLAB_API = "https://gitlab.com/api/v4/"
+GITLAB_DIFF_CAP = (
+    12000  # characters of diff per commit; the drafter reads it in its brief
+)
+
+
+class GitLab:
+    """GitLab REST, read-only: a PRIVATE-TOKEN from the environment, else `glab api`."""
+
+    def __init__(self):
+        self.token = os.environ.get("JOBSEEK_GITLAB_TOKEN")
+        if not self.token and not shutil.which("glab"):
+            raise RuntimeError("JOBSEEK_GITLAB_TOKEN is unset (and no glab here)")
+
+    def get(self, path):
+        if not self.token:
+            r = subprocess.run(["glab", "api", path], capture_output=True, text=True)
+            if r.returncode:
+                raise RuntimeError(
+                    f"glab api {path.split('?')[0]}: {r.stderr.strip()[:200]}"
+                )
+            return json.loads(r.stdout)
+        req = urllib.request.Request(
+            GITLAB_API + path, headers={"PRIVATE-TOKEN": self.token}
+        )
+        for attempt in (1, 2, 3):
+            try:
+                with urllib.request.urlopen(req, timeout=60) as f:
+                    return json.load(f)
+            except urllib.error.HTTPError as e:
+                if e.code in (429, 500, 502, 503) and attempt < 3:
+                    time.sleep(10 * attempt)
+                    continue
+                raise RuntimeError(
+                    f"GitLab {path.split('?')[0]}: HTTP {e.code}"
+                ) from None
+
+    def all(self, path):
+        out, page = [], 1
+        sep = "&" if "?" in path else "?"
+        while True:
+            got = self.get(f"{path}{sep}per_page=100&page={page}")
+            out += got
+            if len(got) < 100:
+                return out
+            page += 1
+
+
+def gitlab_discover(since, until, out):
+    """Every member project's default-branch commits in [since, until), with diffs → gitlab.json."""
+    gl = GitLab()
+    projects = [
+        p for p in gl.all("projects?membership=true&archived=false&simple=true&order_by=id&sort=asc")
+        if "-deletion_scheduled-" not in p["path_with_namespace"]
+    ]  # fmt: skip
+    rng = urllib.parse.urlencode({"since": iso(since), "until": iso(until)})
+    commits = []
+    for p in projects:
+        for c in gl.all(f"projects/{p['id']}/repository/commits?{rng}"):
+            if len(c.get("parent_ids") or []) > 1:
+                continue  # a merge commit: its work is in the commits it merges
+            files = gl.all(f"projects/{p['id']}/repository/commits/{c['id']}/diff")
+            diff = "".join(f"--- {f['new_path']}\n{f.get('diff', '')}\n" for f in files)
+            if len(diff) > GITLAB_DIFF_CAP:
+                diff = (
+                    diff[:GITLAB_DIFF_CAP]
+                    + f"\n[diff cut at {GITLAB_DIFF_CAP} of {len(diff)} characters]"
+                )
+            commits.append({
+                "project": p["path_with_namespace"], "sha": c["id"], "date": c["authored_date"],
+                "message": c["message"].strip(), "url": c["web_url"],
+                "files": sorted({f["new_path"] for f in files}), "diff": diff,
+            })  # fmt: skip
+    commits.sort(key=lambda c: (c["project"], c["date"], c["sha"]))
+    path = os.path.join(out, "gitlab.json")
+    json.dump(commits, open(path, "w"), indent=1, ensure_ascii=False)
+    return path, len(projects)
 
 
 def dedupe(items, key):
@@ -209,8 +298,18 @@ def main(argv=None):
             "set JOBSEEK_GITHUB_AUTHOR"
         )
         disc = discover(author, parse(a.since), parse(a.until_at), S)
+    if not a.gitlab and not a.skip_discovery:
+        try:
+            a.gitlab, disc["gitlab_projects"] = gitlab_discover(
+                parse(a.since), parse(a.until_at), S
+            )
+        except RuntimeError as e:
+            disc["errors"].append(
+                f"GitLab: {e}"
+            )  # loud: the run file's errors, never a silent 0
     gl = json.load(open(a.gitlab)) if a.gitlab else []
     disc["gitlab_commits"] = len(gl)
+    disc["gitlab_diffs"] = sum(1 for c in gl if c.get("diff"))
     json.dump(disc, open(os.path.join(S, "discovery.json"), "w"), indent=1)
 
     # 2. Group

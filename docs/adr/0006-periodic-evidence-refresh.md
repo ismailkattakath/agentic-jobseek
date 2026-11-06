@@ -428,3 +428,31 @@ the neighbours, and the pairs accumulate in `inbox/applied/`.
 
 **Still open:** drafts rest on PR titles and bodies, not diffs (superseded: § 4d reads patches); a scheduled `run_once_at` did not
 fire once (the weekly cron is unproven until its first Monday).
+
+## 4k. GitLab through a script with a read-only token, 2026-11-06
+
+**No run ever read a GitLab diff.** Step 2 asked the model to fetch each commit with the
+connector's `get_commit` and write `gitlab.json` "with a script, never retyping" — impossible: a
+connector's output reaches the model's context, never a file, so the diffs could only be retyped
+(§ 4h's root cause, on the way in). Run files, Aug 11 – Oct 26: titles only (45 and 86 commits),
+four windows at **0** (connector absent, not called, or failing auth).
+
+**Decision:** `prepare.py` fetches GitLab over REST like GitHub — every member project's
+default-branch commits in the window, merges and deletion-scheduled projects skipped, each with
+its full message, changed paths and diff (12,000-character cap). The token is a GitLab personal
+access token with **`read_api` only**, expiring, in `JOBSEEK_GITLAB_TOKEN`; on the operator's Mac
+a logged-in `glab` serves instead. A missing token or a GitLab failure goes into the run file's
+`errors`, never a silent 0.
+
+| Check on Oct 20–26, from this Mac | Result |
+|---|---|
+| projects / commits vs the connector's run | **9 / 101** = 9 listed, 72 + 15 + 12 + 1 + 1 on default branches |
+| commits with a diff | **101 / 101** (was 0); 29 cut at the cap |
+| all branches instead of default | 128 commits but 58 distinct titles, **0** absent from the default branch — rebased copies, so default stays |
+| anonymous API | 404 for 6 of 7 cited projects (private): a token is required |
+
+| Rejected | Why it lost |
+|---|---|
+| Drafters call the connector themselves | the model still chooses what to fetch, untested in a workflow agent, no branch control |
+| Connector as a fallback | a second path whose output is titles only; an error in the run file is more honest |
+| A token with `api` or `read_repository` + clone | wider than needed; `read_api` reads commits and diffs |
