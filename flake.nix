@@ -168,6 +168,8 @@
                 billing = groups["widgets-billing"]
                 assert {"acme/widgets#2", "acme/widgets#10"} <= set(billing), billing
                 assert "acme/widgets#11" not in billing and "acme/widgets#12" not in billing, billing
+                # the same repo name on GitHub and GitLab keeps two groups (an overwrite lost an item, 2026-11-06)
+                assert {"tools-misc", "gl-tools-misc"} <= set(groups), sorted(groups)
                 PY
                 # prepare.py → briefs (deterministic) and assemble.py → validated proposal (§ 4j)
                 python3 scripts/test/pipeline-test.py

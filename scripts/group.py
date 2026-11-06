@@ -82,6 +82,23 @@ LOW_FILES = {
 }
 
 
+def repo_slug(repo):
+    """A repository's name for group keys. GitLab keeps a "gl-" prefix: "gitlab:a/tools" and
+    GitHub "b/tools" both used to become "tools", and one group overwrote the other (2026-11-06)."""
+    name = repo.split("/")[-1]
+    return slug(("gl-" + name) if repo.startswith("gitlab:") else name)
+
+
+def put(groups, key, items):
+    """Add items under key without ever overwriting: the same repository extends its group, a
+    different repository that produced the same key gets a numbered key of its own."""
+    repo = items[0]["repo"]
+    k, n = key, 2
+    while k in groups and groups[k][0]["repo"] != repo:
+        k, n = f"{key}-r{n}", n + 1
+    groups.setdefault(k, []).extend(items)
+
+
 def area(path):
     """A path's subsystem: up to three levels (directories, then the file's stem).
     backend/infra/stacks/x.py -> backend/infra/stacks; hosts/macos.nix -> hosts/macos."""
@@ -335,7 +352,7 @@ def main(argv=None):
     def name(group):
         c = collections.Counter((it["repo"], it["subsystem"]) for it in group)
         repo, sub = sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
-        return slug(repo.split("/")[-1].replace("gitlab:", "gl-")) + "-" + slug(sub)
+        return repo_slug(repo) + "-" + slug(sub)
 
     def week(it):
         d = it["date"][:10]
@@ -367,7 +384,7 @@ def main(argv=None):
             continue
         base = name(comp)
         if len(comp) <= a.max_size:
-            groups.setdefault(base, []).extend(comp)
+            put(groups, base, comp)
             continue
         # Oversized: split by subsystem first (a link chain joined them), then by ISO week,
         # then in date order — each step deterministic.
@@ -375,11 +392,9 @@ def main(argv=None):
         for it in comp:
             by_sub[(it["repo"], it["subsystem"])].append(it)
         for (repo, sub), part0 in sorted(by_sub.items()):
-            sbase = (
-                slug(repo.split("/")[-1].replace("gitlab:", "gl-")) + "-" + slug(sub)
-            )
+            sbase = repo_slug(repo) + "-" + slug(sub)
             if len(part0) <= a.max_size:
-                groups.setdefault(sbase, []).extend(part0)
+                put(groups, sbase, part0)
                 continue
             by_week = collections.defaultdict(list)
             for it in part0:
@@ -389,27 +404,22 @@ def main(argv=None):
                     key = f"{sbase}-{wk}" + (
                         f"-{i // a.max_size + 1}" if len(chunk) > a.max_size else ""
                     )
-                    groups.setdefault(key, []).extend(chunk[i : i + a.max_size])
+                    put(groups, key, chunk[i : i + a.max_size])
     # Area pools still under 3 items join one per-repo pool: a lone fragment is not worth a
     # drafter of its own (~100K tokens, ADR-0006 § 4h.1).
     for repo, ar in sorted(k for k, v in small.items() if len(v) < 3):
         small[(repo, "other")].extend(small.pop((repo, ar)))
     for (repo, ar), its in sorted(small.items()):
         its.sort(key=lambda it: (it["date"], it["id"]))
-        base = (
-            slug(repo.split("/")[-1].replace("gitlab:", "gl-"))
-            + "-"
-            + slug(ar)
-            + "-small"
-        )
+        base = repo_slug(repo) + "-" + slug(ar) + "-small"
         for i in range(0, len(its), a.max_size):
             key = base + (f"-{i // a.max_size + 1}" if len(its) > a.max_size else "")
-            groups.setdefault(key, []).extend(its[i : i + a.max_size])
+            put(groups, key, its[i : i + a.max_size])
     for repo, its in sorted(misc.items()):
-        base = slug(repo.split("/")[-1].replace("gitlab:", "gl-")) + "-misc"
+        base = repo_slug(repo) + "-misc"
         for i in range(0, len(its), a.max_size):
             key = base + (f"-{i // a.max_size + 1}" if len(its) > a.max_size else "")
-            groups[key] = its[i : i + a.max_size]
+            put(groups, key, its[i : i + a.max_size])
 
     # A name collision across components (same dominant subsystem) gets a stable suffix.
     final = {}

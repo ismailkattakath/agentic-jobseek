@@ -307,6 +307,17 @@
    "files": [
     "src/reports/r17.py"
    ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/tools",
+   "number": 7,
+   "title": "fix(tools): typo",
+   "html_url": "https://github.com/acme/tools/pull/7",
+   "body": "Typo.",
+   "pull_request": {
+    "merged_at": "2026-01-07T10:00:00Z"
+   },
+   "files": []
   }
  ],
  "issues": [
@@ -455,6 +466,12 @@
    "files": [
     "cli/main.py"
    ]
+  },
+  {
+   "project": "jane/tools",
+   "sha": "t1",
+   "date": "2026-01-07T08:00:00Z",
+   "message": "tweak"
   }
  ]
 }
