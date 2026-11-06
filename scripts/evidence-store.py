@@ -484,43 +484,6 @@ def _sentences(draft, base_content, rejected=()):
     return add, dropped
 
 
-_PART_RE = re.compile(r"proposal-[0-9A-Za-z]+\.p[0-9]+\.jsonl")
-
-
-def _part_path(inbox, part):
-    """The inbox path of one `proposal_parts` entry, or None. The run file is routine output, so a
-    name is never trusted as a path: only a plain part name directly inside the inbox passes."""
-    name = part.get("file") if isinstance(part, dict) else None
-    if not (isinstance(name, str) and _PART_RE.fullmatch(name)):
-        return None
-    path = os.path.join(inbox, name)
-    real_inbox = os.path.realpath(inbox) + os.sep
-    return path if os.path.realpath(path).startswith(real_inbox) else None
-
-
-def _read_parts(inbox, parts):
-    """A run file's `proposal_parts` -> (paths, proposals) or raise StoreError. Each part carries
-    its own content fingerprint, because the routine uploads each part in its own connector call
-    (one call cannot carry a large proposal verbatim; ADR-0006 § 4g)."""
-    paths, proposals = [], []
-    for i, part in enumerate(parts):
-        path = _part_path(inbox, part)
-        if path is None:
-            raise StoreError(f"proposal_parts[{i}]: not a part file name in the inbox")
-        name = os.path.basename(path)
-        have = _fp.fingerprint(path)
-        if part.get("sha256") != have:
-            raise StoreError(
-                f"fingerprint mismatch in {name}: run file {str(part.get('sha256'))[:12]}…, "
-                f"part {have[:12]}… — not the file the routine computed (ADR-0006 § 4d)"
-            )
-        paths.append(path)
-        proposals += [
-            json.loads(line) for line in open(path, encoding="utf-8") if line.strip()
-        ]
-    return paths, proposals
-
-
 def intake(proposal_path, run_path=None, dry_run=False):
     """Take one routine proposal file into pending.jsonl (ADR § 3). Returns a report dict whose
     "status" is processed | superseded | error | planned (dry_run). All-or-nothing: if any row
@@ -554,38 +517,17 @@ def intake(proposal_path, run_path=None, dry_run=False):
         except json.JSONDecodeError as e:
             run = {}
             rep["warnings"].append(f"run file is not JSON ({e})")
+    try:
+        have = _fp.fingerprint(proposal_path)
+        proposals = [
+            json.loads(line)
+            for line in open(proposal_path, encoding="utf-8")
+            if line.strip()
+        ]
+    except (json.JSONDecodeError, OSError) as e:
+        have, proposals = None, None
+        rep["reason"] = f"proposal is not readable JSONL ({e})"
     want = run.get("proposal_sha256")
-    if run.get("proposal_parts"):
-        # proposal_path is then only the stem the stamp comes from; the parts are the data.
-        try:
-            part_paths, proposals = _read_parts(
-                os.path.dirname(run_path), run["proposal_parts"]
-            )
-            have = want = None
-            files = part_paths + [run_path]
-            rep["proposal"] = ", ".join(os.path.basename(f) for f in part_paths)
-        except (StoreError, json.JSONDecodeError, OSError) as e:
-            have, proposals = None, None
-            rep["reason"] = f"proposal parts unusable ({e})"
-            files = [
-                q
-                for q in (
-                    _part_path(os.path.dirname(run_path), x)
-                    for x in run["proposal_parts"]
-                )
-                if q
-            ] + [run_path]
-    else:
-        try:
-            have = _fp.fingerprint(proposal_path)
-            proposals = [
-                json.loads(line)
-                for line in open(proposal_path, encoding="utf-8")
-                if line.strip()
-            ]
-        except (json.JSONDecodeError, OSError) as e:
-            have, proposals = None, None
-            rep["reason"] = f"proposal is not readable JSONL ({e})"
     if proposals is not None and want and want != have:
         rep["reason"] = (
             f"fingerprint mismatch: run file {want[:12]}…, proposal {have[:12]}… — the file is not the "
@@ -596,7 +538,7 @@ def intake(proposal_path, run_path=None, dry_run=False):
         if not dry_run:
             _archive(files, "superseded", rep["reason"])
         return rep
-    if not want and not run.get("proposal_parts"):
+    if not want:
         rep["warnings"].append(
             "run file records no proposal_sha256; integrity unchecked"
         )
@@ -806,29 +748,24 @@ def intake(proposal_path, run_path=None, dry_run=False):
 
 
 def intake_inbox(dry_run=False):
-    """intake() for every inbox/run-*.json whose proposal-*.jsonl sits beside it. A proposal with
-    no run file yet is skipped: the routine writes the run file LAST, so it is still mid-write."""
+    """intake() for every run-*.json whose proposal-*.jsonl sits beside it, in inbox/ and in
+    inbox/drop/ (where the Apps Script drop writes, ADR-0006 § 4h). A proposal with no run file
+    yet is skipped: the routine uploads the run file LAST, so it is still mid-write."""
     inbox = os.path.join(root(), "inbox")
     reports = []
-    if not os.path.isdir(inbox):
-        return reports
-    for name in sorted(os.listdir(inbox)):
-        if not (name.startswith("run-") and name.endswith(".json")):
+    for folder in (inbox, os.path.join(inbox, "drop")):
+        if not os.path.isdir(folder):
             continue
-        stem = name[len("run-") : -len(".json")]
-        proposal = os.path.join(inbox, "proposal-" + stem + ".jsonl")
-        run_path = os.path.join(inbox, name)
-        try:
-            parts = json.load(open(run_path, encoding="utf-8")).get("proposal_parts")
-        except (json.JSONDecodeError, OSError):
-            parts = None
-        if parts:
-            # Taken in only when every part has synced; a missing one is still on its way.
-            paths = [_part_path(inbox, x) for x in parts]
-            if all(paths) and all(os.path.exists(q) for q in paths):
-                reports.append(intake(proposal, run_path, dry_run=dry_run))
-        elif os.path.exists(proposal):
-            reports.append(intake(proposal, run_path, dry_run=dry_run))
+        for name in sorted(os.listdir(folder)):
+            if not (name.startswith("run-") and name.endswith(".json")):
+                continue
+            proposal = os.path.join(
+                folder, "proposal-" + name[len("run-") : -len(".json")] + ".jsonl"
+            )
+            if os.path.exists(proposal):
+                reports.append(
+                    intake(proposal, os.path.join(folder, name), dry_run=dry_run)
+                )
     return reports
 
 

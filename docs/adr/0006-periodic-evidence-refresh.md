@@ -224,7 +224,7 @@ Re-run of 2026-08-01..08-11 on the § 4f design (session `cse_01G12ck8RqJXDTJQS1
 | Advisor via `advisorModel` in user settings | ❌ `advisor: none` — not offered to a cloud session this way; the setup-script line was removed the same day (dead config) |
 | Proposal upload | ❌ 317,686 bytes could not go through one Drive connector call verbatim; nothing reached intake |
 
-**Fix — the proposal travels in parts.** The routine splits it into ≤ 40,000-byte parts
+**Fix tried — the proposal travels in parts (superseded by § 4h the same day).** The routine splits it into ≤ 40,000-byte parts
 (50,716 bytes had uploaded intact on 2026-11-06), records each part's content fingerprint in the
 run file's `proposal_parts`, and uploads the run file last. Intake waits for every part, checks
 each fingerprint, and takes the parts in as one all-or-nothing run. Tested on a copy of the
@@ -239,6 +239,44 @@ missing part → not taken in yet.
 
 **Cost, measured:** one drafter used ~131K tokens (`tk-agent-spec`), so a 28-group window is on
 the order of 3–4M Opus tokens.
+
+## 4h. The proposal reaches Drive through an Apps Script drop, 2026-11-06
+
+§ 4g's parts did not fix the transport; they spread the same failure across more calls. The
+next run drafted all 30 groups, then uploaded only 6 of 30 parts. The Drive connector makes the
+model **retype every byte** (285 KB here): one part came out with placeholder text, one was cut
+from 5,331 to 4,221 bytes, and a safety classifier stopped the response mid-upload. No run file
+was written. Retyping is the root cause; § 4d's fingerprint only detected it.
+
+**Decision:** a script uploads, never the model. `apps-script/inbox-drop/` is a ~70-line Apps
+Script web app, deployed as the operator, `drive.file` scope only. It writes a POSTed
+`{token, name, content}` into its own `inbox/drop/` folder and answers with the sha256 of what
+it wrote. `scripts/inbox-upload.py` posts the proposal, then the run file, and fails on any
+hash mismatch. Intake scans `inbox/drop/` beside `inbox/`. The parts machinery was reverted:
+one byte-exact file needs no splitting.
+
+| Check, from this Mac against the deployed drop | Result |
+|---|---|
+| 315,040-byte JSONL with Unicode, quotes, tabs | ✅ drop's sha256 = local sha256; the Drive-synced copy hashes the same |
+| same name again | ✅ refused `exists` |
+| name outside `proposal-*.jsonl` / `run-*.json` | ✅ refused `bad name` |
+| wrong token | ✅ refused `unauthorized` |
+| after moving `drop/` into `evidence/inbox/` | ✅ uploads land there (drive.file follows the folder) |
+
+- **The token travels in the JSON body**, never the URL (proxies and request logs keep URLs;
+  flagged by review). Apps Script cannot read request headers, so a network secret cannot carry
+  it; it sits in the environment variables beside the heartbeat URL — the same risk class: it
+  can only add files to the drop, and intake still checks the fingerprint and keeps everything
+  pending.
+- **Precedent:** jsonresume-connect is the operator's Apps Script + clasp project with the same
+  `drive.file` + advanced Drive v3 pattern.
+
+| Rejected | Why it lost |
+|---|---|
+| A Neon inbox table | the operator's Neon quota is limited; Drive stays the one home (§ 2) |
+| Drive API with an OAuth refresh token | a long-lived, broader Google credential in an environment variable |
+| rclone + service account | service accounts hold no My Drive storage, so the inbox would move to a Shared Drive |
+| Slimmer proposals / fewer groups | the model still retypes; the failure becomes rarer, not impossible |
 
 ## 5. Rejected
 

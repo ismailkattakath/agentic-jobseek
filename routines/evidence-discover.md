@@ -21,11 +21,13 @@ file plus a run file in the Drive inbox.
 | `JOBSEEK_HEARTBEAT_URL` | dead man's switch endpoint pinged at the end of the run (step 8); optional. **SECRET** — it embeds the ping key: never echo, print or quote it |
 | `JOBSEEK_OTLP_ENDPOINT` | Grafana Cloud OTLP base URL (`…/otlp`) for the run-stats push (step 9); optional |
 | `JOBSEEK_OTLP_INSTANCE` | Grafana Cloud instance id; optional. Together with the endpoint it arms step 9. The token is NOT a variable: the environment's network secret injects the `Authorization` header |
+| `JOBSEEK_INBOX_DROP_URL` | the Apps Script drop's web-app URL that `scripts/inbox-upload.py` POSTs to (step 7) |
+| `JOBSEEK_INBOX_DROP_TOKEN` | the drop's shared token. **SECRET** — it lets anyone write into the drop folder: never echo, print or quote it; only the uploader reads it |
 | `FASTEMBED_CACHE_PATH` | the cached nomic-embed-text-v1.5 model (setup script) |
 
 **Variables are not expanded inside connector calls.** Read each value with `echo "$NAME"` in
 Bash first, then pass the literal value to the connector (a call given `${JOBSEEK_NEON_PROJECT_ID}` fails).
-**Except `JOBSEEK_HEARTBEAT_URL`:** never echo it (it carries a secret, and the session log keeps
+**Except `JOBSEEK_HEARTBEAT_URL` and `JOBSEEK_INBOX_DROP_TOKEN`:** never echo them (it carries a secret, and the session log keeps
 every command's output). Check it only with `[ -n "$JOBSEEK_HEARTBEAT_URL" ] && echo set || echo unset`;
 no connector needs it.
 
@@ -127,29 +129,27 @@ three settings is ignored.
    A group whose drafter failed is listed in `errors` with the failure, never drafted by you.
    **Never stop early to save context.** Sessions run with a 1M-token window and the drafters
    hold the bodies, not you. Stop only on a real error, and record it.
-7. **Write — the files you computed, byte for byte, in parts.** Build every file with a script in
-   your scratchpad, never by hand. One connector call cannot carry a large proposal verbatim
-   (a 317,686-byte one could not be uploaded, ADR-0006 § 4g), so split the proposal lines in
-   order into parts of **at most 40,000 bytes** each — `proposal-<stamp>.p01.jsonl`,
-   `.p02.jsonl`, … (a single group line over 40,000 bytes is its own part). For each part record
-   `{"file", "sha256", "bytes"}` in the run file's `proposal_parts`, with `sha256` from
-   `python3 scripts/proposal-fingerprint.py <part>` and `bytes` from `wc -c`. Upload every part
-   first, then the run file LAST, each with the Drive connector (plain text, no conversion),
-   passing the contents exactly as read back from disk — do not reformat, shorten or drop
-   fields. Intake waits until every listed part has arrived, checks each part's fingerprint,
-   and moves the whole run to `inbox/superseded/` if any part changed on the way.
+7. **Write — build the files with a script, upload them with a script.** Build both files in
+   your scratchpad, never by hand, and record the proposal's content fingerprint
+   (`python3 scripts/proposal-fingerprint.py proposal-<stamp>.jsonl`) and byte count (`wc -c`)
+   in the run file as `proposal_sha256` and `proposal_bytes`. Then upload both with
+   `python3 scripts/inbox-upload.py proposal-<stamp>.jsonl run-<stamp>.json` — run file LAST.
+   It POSTs the bytes to the operator's Drive drop and checks the sha256 the drop answers with,
+   so no byte passes through you. **Never upload a proposal or run file with the Drive
+   connector** (retyping 285 KB corrupted two files and tripped a safety stop, ADR-0006 § 4h);
+   the connector stays for reading the inbox (step 1). If the uploader prints `FAILED`, put
+   its line in `errors` and stop uploading; never retry by hand.
    If a run file with this `<stamp>` already sits in `processed/` (the window was run before),
    add one minute to the stamp, never to `until_at`.
-   - `proposal-<stamp>.pNN.jsonl` — one JSON object per group, split across parts (no parts
-     when there is nothing to propose):
+   - `proposal-<stamp>.jsonl` — one JSON object per group (skip the file when there is none):
      `{"group", "action", "target_doc_id", "neighbours": [{"doc_id", "content_hash", "title",
        "cosine", "status"}],
        "claim", "draft", "sources": [urls or SHAs], "read": [...], "numbers": [{"value",
        "source"}], "removed_in_verify": [...]}` — skips included, neighbours and all;
    - `run-<stamp>.json` — `{"since", "until_at", "github_prs", "github_commits" (after the 2b
      filters), "github_issues", "gitlab_commits", "groups",
-     "dropped_chores", "proposals": {"enrich", "new", "skip"}, "proposal_parts": [{"file",
-     "sha256", "bytes"}], "drafter" (`evidence-group` or `general-purpose`), "advisor" (the advisor
+     "dropped_chores", "proposals": {"enrich", "new", "skip"}, "proposal_sha256",
+     "proposal_bytes", "drafter" (`evidence-group` or `general-purpose`), "advisor" (the advisor
      model if this session offered you an advisor tool, else `none`), "errors": [...]}`.
    **Always write the run file** — with nothing to propose, and when a step failed. It is the
    record that the run happened and the next run's watermark; a run without one is invisible.

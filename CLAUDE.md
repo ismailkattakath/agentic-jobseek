@@ -84,6 +84,7 @@ comments, so this paragraph is the settings comment.)
 | `theme/` | The résumé PDF theme (Typst): `lib.typ` tokens + sections, `resume.typ` layout, vendored fonts (OFL), the public sample used by the gate |
 | `.claude/rules/` | Policy, one file per rule — read the directory |
 | `.claude/skills/` | The procedures, one directory per skill — read the directory |
+| `apps-script/inbox-drop/` | The Drive drop the cloud routine uploads proposals to (ADR-0006 § 4h); deployed with clasp, its TOKEN and FOLDER_ID live in Script Properties |
 | `docs/adr/` | The decisions and what they beat |
 | `.mcp.json` | **Deliberately empty** — everything used is user scope or a plugin (ADR-0001) |
 
@@ -100,6 +101,7 @@ scripts/job-evidence.sh "<folder>" [--scope enterprise]     # one evidence query
 scripts/claims.sh search "<draft bullet>"                   # past rulings; `rebuild` after edits
 scripts/master-patch.py "<patch.json>" [--publish]          # correct the master: dry run, then publish on approval
 scripts/evidence-sync.sh                                    # intake inbox + invariant + cache ← three JSONL files (idempotent)
+scripts/inbox-upload.py <proposal> <run>                    # the routine's byte-exact upload to the Apps Script drop (ADR-0006 § 4h)
 scripts/evidence-review.py approve|reject <doc_id> --write  # move a pending document (ADR-0007; the tailor asks at point of use)
 scripts/evidence-dups.sh [--threshold 0.94]                 # near-duplicate pairs to review
 scripts/retrieval-eval.py build|pool|score                  # graded retrieval test (evidence/eval/)
