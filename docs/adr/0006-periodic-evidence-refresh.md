@@ -203,9 +203,9 @@ The model stopped early by choice.
   `model: "opus"`, recorded in the run file's `drafter`.
 - **Advisor (operator's choice to try):** the advisor tool is experimental and undocumented for
   routines, and a multi-repo session ignores repo settings except `enabledPlugins`. The setup
-  script writes `advisorModel: "opus"` to the user settings, which Claude Code reads at start
-  (Sonnet 5.5 accepts Opus 5+ as advisor; subagents inherit it). The run file's `advisor` field
-  records whether the session was offered one; `none` means the attempt failed silently.
+  script wrote `advisorModel: "opus"` to the user settings (Sonnet 5.5 accepts Opus 5+ as
+  advisor). It failed silently (§ 4g) and was removed; the run file's `advisor` field stays, so
+  a future route shows up as soon as it works.
 
 | Rejected | Why it lost |
 |---|---|
@@ -221,7 +221,7 @@ Re-run of 2026-08-01..08-11 on the § 4f design (session `cse_01G12ck8RqJXDTJQS1
 |---|---|
 | Visibility after the Claude GitHub App was installed on the missing org | ✅ 97 PRs and 65 issues: equal to a local count of the same window |
 | Drafters | ✅ `drafter: evidence-group` — the setup script's symlink loaded the Opus agent; **28 of 28** groups drafted (15 enrich, 11 new, 2 skip) in ~30 min |
-| Advisor via `advisorModel` in user settings | ❌ `advisor: none` — not offered to a cloud session this way; the setup-script line stays only until a documented route exists |
+| Advisor via `advisorModel` in user settings | ❌ `advisor: none` — not offered to a cloud session this way; the setup-script line was removed the same day (dead config) |
 | Proposal upload | ❌ 317,686 bytes could not go through one Drive connector call verbatim; nothing reached intake |
 
 **Fix — the proposal travels in parts.** The routine splits it into ≤ 40,000-byte parts
