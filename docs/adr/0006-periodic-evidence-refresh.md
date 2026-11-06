@@ -486,3 +486,22 @@ the web app executes as whoever deploys it, the Apps Script API rejects service 
 the CI route stores the operator's Google refresh token as a GitHub secret. A new scope still
 needs one consent in the editor. The offline gate syntax-checks `Code.gs` (a broken copy is
 refused).
+
+## 4m. No group cap by default, 2026-11-06
+
+`max_groups` (100 since § 4i) bounded cost, not coverage — and it lost coverage: groups beyond it
+were counted in `groups_beyond_cap`, but the next run's `since` moves past them, so they were
+never drafted. With every step scripted nothing else limits a window: `max_groups` defaults to
+**0 = no cap**; the fire text may still set one for a test.
+
+| Bound | Measured | 99 groups (Sep 30 – Oct 10) |
+|---|---|---|
+| drafter tokens | ~108K Opus per group (§ 4h.1) | ≈ 10.7M |
+| wall-clock | 0.53 min per group at 5 lanes (window 8: 41 in 21.6 min) | ≈ 52 min |
+| workflow agents | 1,000 per workflow | not close |
+
+| Rejected | Why it lost |
+|---|---|
+| Keep 100 | a busy window silently loses its lowest-ranked groups |
+| A cap with carry-over to the next run | state between runs for a limit nothing else needs |
+

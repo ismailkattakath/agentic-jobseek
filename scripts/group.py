@@ -2,7 +2,7 @@
 """group.py — deterministic grouping for the evidence-discover routine (step 4, ADR-0006 § 4i).
 
     group.py (--prs PRS.json --issues ISSUES.json --commits COMMITS.json [--gitlab GL.json] | --input ALL.json)
-             --out DIR [--max-groups N] [--max-size 15] [--offline] [--cache DIR]
+             --out DIR [--max-groups N (0 = no cap)] [--max-size 15] [--offline] [--cache DIR]
 
 Inputs are the routine's step 2-3 results, as fetched: GitHub search items for merged PRs and
 authored issues, `search/commits` items, and GitLab commits as [{project, sha, date, message,
@@ -13,8 +13,8 @@ changed (`gh api` file lists, cached; on a 403 — repository not attached — o
 falls back to the title's scope, then to "misc"). Items union on closing links (a PR that
 closes an issue, a commit that names its PR) and on the same (repository, subsystem). A group
 larger than --max-size splits by ISO week, then in date order. Thin one-item groups collect
-into <repo>-misc. Groups rank by substance (characters of body and message); --max-groups cuts
-the rest, which are counted, never silently dropped.
+into <repo>-misc. Groups rank by substance (characters of body and message); --max-groups, when
+set, cuts the rest, which are counted, never silently dropped; by default none is cut.
 
 Writes DIR/groups/<key>.json ({key, items}), DIR/groups.tsv (key<TAB> — the routine writes the
 sentence) and DIR/coverage.json, whose counts must sum to `found`.
@@ -237,7 +237,9 @@ def main(argv=None):
         "--input", help="one JSON object with prs/issues/commits/gitlab lists"
     )
     ap.add_argument("--out", required=True)
-    ap.add_argument("--max-groups", type=int, default=100)
+    ap.add_argument(
+        "--max-groups", type=int, default=0, help="0 = no cap (the default)"
+    )
     ap.add_argument("--max-size", type=int, default=15)
     ap.add_argument(
         "--offline", action="store_true", help="never call gh; use item files or titles"
@@ -431,7 +433,8 @@ def main(argv=None):
 
     substance = lambda its: sum(len(it["body"]) for it in its)  # noqa: E731
     ranked = sorted(final.items(), key=lambda kv: (-substance(kv[1]), kv[0]))
-    kept_groups, beyond = ranked[: a.max_groups], ranked[a.max_groups :]
+    cap = a.max_groups or len(ranked)  # 0: every group is drafted (ADR-0006 § 4m)
+    kept_groups, beyond = ranked[:cap], ranked[cap:]
 
     os.makedirs(os.path.join(a.out, "groups"), exist_ok=True)
     for key, its in kept_groups:

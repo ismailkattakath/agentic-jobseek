@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """prepare.py — discovery, grouping, matching and drafter briefs in one command (ADR-0006 § 4j).
 
-    prepare.py --since ISO --until-at ISO --out DIR [--gitlab GL.json] [--max-groups 100]
+    prepare.py --since ISO --until-at ISO --out DIR [--gitlab GL.json] [--max-groups N (0 = no cap)]
                [--match-python PY] [--sentences TSV] [--skip-discovery] [--offline]
 
 Everything mechanical in the evidence-discover routine, in code, so two runs over the same
@@ -260,7 +260,9 @@ def main(argv=None):
     ap.add_argument("--until-at", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--gitlab")
-    ap.add_argument("--max-groups", type=int, default=100)
+    ap.add_argument(
+        "--max-groups", type=int, default=0, help="0 = no cap (the default)"
+    )
     ap.add_argument("--match-python", default=sys.executable)
     ap.add_argument(
         "--sentences", help="key<TAB>sentence lines to use instead of the script's"
