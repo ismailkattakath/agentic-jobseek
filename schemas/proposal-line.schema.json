@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "evidence-discover proposal line (routines/evidence-discover.md step 7; ADR-0006 § 4j)",
+  "description": "One drafter's output for one group. scripts/assemble.py validates every line against this before building the proposal; the workflow passes it to agent() as the schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "group",
+    "action",
+    "target_doc_id",
+    "neighbours",
+    "claim",
+    "draft",
+    "sources",
+    "read",
+    "numbers",
+    "removed_in_verify"
+  ],
+  "properties": {
+    "group": {
+      "type": "string",
+      "minLength": 1
+    },
+    "action": {
+      "enum": [
+        "new",
+        "enrich",
+        "skip"
+      ]
+    },
+    "target_doc_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "neighbours": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "doc_id",
+          "content_hash",
+          "title",
+          "cosine",
+          "status"
+        ],
+        "properties": {
+          "doc_id": {
+            "type": "string"
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "cosine": {
+            "type": "number"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "pending",
+              "rejected"
+            ]
+          }
+        }
+      },
+      "maxItems": 3
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What the group shows; for a skip, the reason, naming what was read"
+    },
+    "draft": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "read": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "numbers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "value",
+          "source"
+        ],
+        "properties": {
+          "value": {},
+          "source": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "removed_in_verify": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "new"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_doc_id": {
+            "type": "null"
+          },
+          "draft": {
+            "type": "object",
+            "required": [
+              "title",
+              "content",
+              "doc_type",
+              "source_class",
+              "company",
+              "repo",
+              "period",
+              "skills",
+              "technologies",
+              "domains",
+              "author_confidence",
+              "metadata"
+            ],
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "content": {
+                "type": "string",
+                "minLength": 1
+              },
+              "doc_type": {
+                "type": "string",
+                "enum": [
+                  "contribution",
+                  "hard_problem",
+                  "skill_evidence",
+                  "architecture_decision",
+                  "unique_strength",
+                  "subsystem",
+                  "cross_repo_theme",
+                  "repo_overview",
+                  "resume_corroboration"
+                ]
+              },
+              "source_class": {
+                "type": "string",
+                "enum": [
+                  "enterprise",
+                  "personal-project",
+                  "oss-contribution"
+                ]
+              },
+              "company": {
+                "type": "string",
+                "minLength": 1
+              },
+              "repo": {
+                "type": "string"
+              },
+              "period": {
+                "type": "string"
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "technologies": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "domains": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "author_confidence": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "enrich"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_doc_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "draft": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "add_sentences",
+              "period_end",
+              "commit_refs"
+            ],
+            "properties": {
+              "add_sentences": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "period_end": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}$"
+              },
+              "commit_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "skip"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "draft": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

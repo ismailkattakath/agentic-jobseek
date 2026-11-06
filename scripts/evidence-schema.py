@@ -43,19 +43,39 @@ _TYPES = {
     "string": str,
     "boolean": bool,
     "null": type(None),
+    "number": (int, float),
+    "integer": int,
 }
 
 
+def _is(t, v):
+    return isinstance(v, _TYPES[t]) and not (t != "boolean" and isinstance(v, bool))
+
+
 def _subset(s, v, path):
+    """The keywords the repo's schemas use (evidence-doc, proposal-line): type (or a list of
+    types), enum, const, minLength, pattern, items, minItems, maxItems, required, properties,
+    additionalProperties, and allOf of if/then. Identical results everywhere, no dependency."""
     where = "/".join(path) or "document"
     t = s.get("type")
-    if t and not (
-        isinstance(v, _TYPES[t]) and not (t != "boolean" and isinstance(v, bool))
-    ):
+    if t and not any(_is(x, v) for x in (t if isinstance(t, list) else [t])):
         return [f"{where}: expected {t}, got {type(v).__name__}"]
     out = []
+    if "const" in s and v != s["const"]:
+        out.append(f"{where}: {v!r} is not {s['const']!r}")
     if "enum" in s and v not in s["enum"]:
         out.append(f"{where}: {v!r} is not one of {s['enum']}")
+    if isinstance(v, list):
+        if len(v) < s.get("minItems", 0):
+            out.append(f"{where}: fewer than {s['minItems']} items")
+        if "maxItems" in s and len(v) > s["maxItems"]:
+            out.append(f"{where}: more than {s['maxItems']} items")
+    for sub in s.get("allOf", []):
+        if "if" in sub:
+            if not _subset(sub["if"], v, path) and "then" in sub:
+                out += _subset(sub["then"], v, path)
+        else:
+            out += _subset(sub, v, path)
     if isinstance(v, str):
         if len(v) < s.get("minLength", 0):
             out.append(f"{where}: {v!r} is shorter than {s['minLength']}")
@@ -77,6 +97,13 @@ def _subset(s, v, path):
             elif s.get("additionalProperties", True) is False:
                 out.append(f"{where}: additional property {k!r} is not allowed")
     return out
+
+
+def validate(schema, doc):
+    """[message, ...] for one document against any repo schema, with the built-in validator
+    (ADR-0006 § 4j: one engine in the cloud and locally, so a verdict never depends on which
+    packages happen to be installed)."""
+    return _subset(schema, doc, [])
 
 
 def errors(doc):

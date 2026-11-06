@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""pipeline-test.py — offline gate for prepare.py and assemble.py (ADR-0006 § 4j), fabricated data only.
+
+Runs prepare.py twice over scripts/test/group-fixture.json (no network: --skip-discovery,
+--offline) and asserts identical briefs; then fills drafts — every group a valid skip, one
+invalid — and asserts assemble.py keeps the valid lines, reports the invalid one, records a
+fingerprint that proposal-fingerprint.py reproduces, and moves a taken stamp by one minute.
+"""
+
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SCRIPTS = os.path.dirname(HERE)
+fx = json.load(open(os.path.join(HERE, "group-fixture.json")))
+
+
+def run(*args):
+    r = subprocess.run([sys.executable, *args], capture_output=True, text=True)
+    assert r.returncode == 0, (args, r.stdout, r.stderr)
+    return r.stdout
+
+
+def prepared(root):
+    for k in ("prs", "issues", "commits"):
+        json.dump(fx[k], open(os.path.join(root, f"{k}.json"), "w"))
+    json.dump(fx["gitlab"], open(os.path.join(root, "gitlab.json"), "w"))
+    json.dump({"github_prs": len(fx["prs"]), "github_issues": len(fx["issues"]), "github_commits_raw": len(fx["commits"]), "errors": []}, open(os.path.join(root, "discovery.json"), "w"))  # fmt: skip
+    run(os.path.join(SCRIPTS, "prepare.py"), "--since", "2026-01-01T00:00:00Z", "--until-at", "2026-01-11T00:00:00Z", "--out", root, "--gitlab", os.path.join(root, "gitlab.json"), "--skip-discovery", "--offline")  # fmt: skip
+
+
+with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+    prepared(a)
+    prepared(b)
+    keys = [ln.split("\t") for ln in open(os.path.join(a, "groups.tsv")) if ln.strip()]
+    assert keys and all(s.strip() for _, s in keys), (
+        "every group needs a match sentence"
+    )
+    for k, _ in keys:
+        ba, bb = (open(os.path.join(d, "briefs", k + ".json")).read() for d in (a, b))
+        assert ba == bb, f"brief {k} differs between two runs"
+        assert json.loads(ba)["items"], f"brief {k} has no items"
+
+    for i, (k, _) in enumerate(keys):
+        d = {"group": k, "action": "skip", "target_doc_id": None, "neighbours": [], "claim": "Fixture skip: nothing evidence-worthy.", "draft": None, "sources": [], "read": [], "numbers": [], "removed_in_verify": []}  # fmt: skip
+        if i == 0:
+            d["draft"] = {
+                "reason": "a skip must carry draft: null"
+            }  # invalid on purpose
+        json.dump(d, open(os.path.join(a, "drafts", k + ".json"), "w"))
+    out = json.loads(run(os.path.join(SCRIPTS, "assemble.py"), "--scratch", a, "--since", "2026-01-01T00:00:00Z", "--until-at", "2026-01-11T00:00:00Z", "--taken", "20260111T0000Z"))  # fmt: skip
+    assert out["stamp"] == "20260111T0001Z", out
+    run_file = json.load(open(out["run"]))
+    assert run_file["proposals"]["skip"] == len(keys) - 1, run_file["proposals"]
+    assert any(
+        e.startswith(f"draft invalid: {keys[0][0]}") for e in run_file["errors"]
+    ), run_file["errors"]
+    spec = importlib.util.spec_from_file_location(
+        "fp", os.path.join(SCRIPTS, "proposal-fingerprint.py")
+    )
+    fp = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fp)
+    assert run_file["proposal_sha256"] == fp.fingerprint(out["proposal"])
+    assert run_file["coverage"]["found"] == sum(
+        len(fx[k]) for k in ("prs", "issues", "commits", "gitlab")
+    )
+print("pipeline-test: ok")

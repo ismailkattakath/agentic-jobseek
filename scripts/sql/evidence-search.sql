@@ -16,8 +16,11 @@
 -- Reciprocal-rank fusion (k = 60) of the top 50 by vector distance and the top 50 by full-text
 -- rank (any query word, English stemming): nDCG@10 +0.104 over vector-only, 95% CI [+0.051, +0.159].
 WITH q AS MATERIALIZED (SELECT :'qv'::vector AS v),
+     -- Each lexeme is quote_literal()'d: a raw one such as 'github.com/x)' is not tsquery syntax and
+     -- failed the whole search (2026-11-06, a query holding a URL).
      tq AS MATERIALIZED (SELECT to_tsquery('english', coalesce(nullif(array_to_string(
-            tsvector_to_array(to_tsvector('english', :'q')), ' | '), ''), 'xxnomatchxx')) AS t),
+            ARRAY(SELECT quote_literal(x) FROM unnest(tsvector_to_array(to_tsvector('english', :'q'))) x),
+            ' | '), ''), 'xxnomatchxx')) AS t),
      pool AS (SELECT * FROM public.evidence
               WHERE (:'scope' = '' OR source_class = :'scope') AND doc_type = ANY(:'types'::text[])
                 AND status = ANY(:'statuses'::text[])),

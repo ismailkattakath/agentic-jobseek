@@ -443,6 +443,9 @@ def main(argv=None):
         "subsystem_from": dict(
             collections.Counter(it["subsystem_from"] for it in items)
         ),
+        "kept_by_kind": dict(
+            sorted(collections.Counter(it["kind"] for it in items).items())
+        ),
     }
     total = grouped + dropped["chores"] + sum(coverage["filtered"].values()) + beyond_n
     json.dump(coverage, open(os.path.join(a.out, "coverage.json"), "w"), indent=1)

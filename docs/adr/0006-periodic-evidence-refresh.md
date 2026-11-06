@@ -336,6 +336,57 @@ chain, chores/copies/merges counted, no group over 15. `max_groups` now defaults
 | Title scope only | leaves 41 % of PRs unkeyed |
 | Embedding clustering | adds a model, a threshold to tune, and still needs a size cap |
 
+## 4j. A scripted pipeline around one judgment step, 2026-11-06
+
+Nine cloud runs today took **16–36 min** per window, with throughput varying 2× for similar
+group counts. The model's own filtering differed run to run (one window reported 90 direct
+commits where `group.py` keeps 156 from the same data). Logs showed drafters re-reading the two
+procedure files 2–4 times each, the orchestrator reading group bodies and hand-building neighbour
+files (one wrote column names as the values, one compared a uuid with text), drafters re-querying
+Neon, output reshaped by hand, and stamps handled ad hoc. **8 %** of the day's 262 proposal lines
+fail the line schema. The operator set the priority: **determinism first**, draft quality fixed.
+
+**Decision — scripts around the drafting:**
+
+| Stage | Who | What |
+|---|---|---|
+| `prepare.py --phase group` | script | paged GitHub discovery split under the cap (reproduced 286 / 156 / 520 in 37 s), `group.py`, `titles.txt` |
+| match sentences | **model**, fixed template | see the measurement below |
+| `prepare.py --phase match` | script | `match.py`, neighbours via `scripts/sql/neighbours.sql`, one brief per group (identical across runs) |
+| `.claude/workflows/evidence-draft.js` | workflow | one `evidence-group` drafter per brief, 5 lanes; each drafter self-validates with `assemble.py --check` |
+| `assemble.py` | script | validates every line against `schemas/proposal-line.schema.json`, builds proposal + run file, coverage, stamp rule |
+
+The drafter reads `routines/evidence-group.md` (now holding the drafting rules) and its brief
+once each. The repo's built-in validator agrees with `jsonschema` on 266 of 266 real lines, so
+one engine runs everywhere.
+
+**Cloud smoke test** (one-off routine, same environment): the Workflow tool runs a script by
+`scriptPath` from the attached repo; 8 of 8 schema-valid returns; agents write files. The
+runtime caps concurrency at `min(16, CPUs − 2)`, which was **2** here, until
+`CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS=5` was set on the environment: then **5**, and 8 ×
+20 s tasks took 58 s instead of 122 s.
+
+**Match sentence — measured before switching:** over 120 enrich groups from today's windows,
+the drafter's chosen target was in the top 3 for **95.8 %** of the stored (model-sentence)
+matches, **76.7 %** for a scripted title sentence and **82.5 %** for a richer one (up to 8 item
+descriptions). The bar was within 5 points, so the model keeps this one step, from a fixed
+template. The baseline is biased upward (drafters chose targets from the model's neighbours),
+but the scripted sentence never found a target the model missed (0 vs 23).
+
+**Found on the way:** the hybrid search failed outright on a query holding a URL. Its tsquery
+joined raw lexemes such as `github.com/x)`, which is not tsquery syntax. Lexemes are now
+`quote_literal()`'d. That is quality-neutral: hybrid nDCG@10 is 0.707 with old and new SQL on
+today's store; the drift from 0.711 is the 112 pending documents added today.
+
+| Rejected | Why it lost |
+|---|---|
+| User-settings hooks (`~/.claude/settings.json`) | cloud sessions do not read user settings |
+| Repo `.claude/settings.json` hooks or env | a multi-repo session reads only `enabledPlugins` |
+| TaskCreate / TodoWrite checklists | bookkeeping, not enforcement; a fixed script order is stronger |
+| Nested `claude -p --json-schema` drafters | cloud auth and billing undocumented; `--bare` bills as API |
+| Workflow `schema` holding the full proposal shape | scripts cannot read files, so it would be a second copy of the schema; drafters run `--check` against the one file |
+| Scripted match sentences | 82.5 % vs 95.8 % (above) |
+
 ## 5. Rejected
 
 | Option | Why it lost |

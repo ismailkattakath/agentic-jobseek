@@ -169,6 +169,8 @@
                 assert {"acme/widgets#2", "acme/widgets#10"} <= set(billing), billing
                 assert "acme/widgets#11" not in billing and "acme/widgets#12" not in billing, billing
                 PY
+                # prepare.py → briefs (deterministic) and assemble.py → validated proposal (§ 4j)
+                python3 scripts/test/pipeline-test.py
                 # Own theme: render JSON Resume's public sample (MIT), then gate it — ATS-style text
                 # order + completeness, and PDF/UA-1 conformance. A real résumé never enters the build.
                 export HOME="$PWD"   # typst and veraPDF want a writable home in the sandbox
