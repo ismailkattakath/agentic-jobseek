@@ -299,6 +299,43 @@ the order of **3M drafter tokens** (estimated from that sample). Hybrid nDCG@10 
   `scripts/embed.py` moved to `/api/embed` with `truncate`, matching the cloud's fastembed
   `max_length=2048` (cosine 1.000000 on stored rows).
 
+## 4i. Deterministic grouping — `scripts/group.py`, 2026-11-06
+
+A group is the unit of the whole pipeline: one group → one match → one Opus drafter (~100K
+tokens) → one proposal line → at most one evidence document. Until now the orchestrator grouped
+by judgment, writing a throwaway script each run: the same window (2026-09-30..10-10) came out
+as **92 groups** on one pass and **40** on the next, the second with 40- and 33-item groups that
+fold several citable pieces of work into one blurred document.
+
+**Signals, measured on that window's 286 merged PRs:** 87 carry a conventional-commit scope
+and 35 a nix-config area prefix; **118 (41 %) have no title scope** (that repository titles PRs
+with bare areas such as `claude, docs`); 75 close an issue; no single scope exceeds 13 PRs.
+
+**Decision:** `scripts/group.py` groups; the model only writes each group's match sentence and
+may merge two groups that are plainly one feature (recorded as `merges`). The subsystem key is,
+in order: the commit **scope** (it names the feature), an issue's epic tag, the **changed
+paths** (three levels, docs/tests/agent-memory excluded), the title's area, else the item
+itself. Items union on closing links (`Closes #N`, a squash subject's `(#N)`) and on the same
+(repository, subsystem); a group over 15 splits by subsystem, then ISO week; one- and two-item
+fragments pool by area, then per repository. `coverage.json` accounts for every item read.
+
+| Iteration on the real window | Groups | Largest | Defect found |
+|---|---|---|---|
+| paths at depth 2, shared `spec` key for unscoped issues | 97 | 15 | one chained component (every issue + every PR closing one); week splits of unrelated work |
+| issues key on themselves, paths at depth 3 | 212 | 15 | structural fragments (`backend-makefile`, `docs-operations-finops` apart from `finops`) |
+| **scope first, fragments pooled** | **99** | 15 | none in a spot check: `dns` (12, all ADR-018), `finops`, `hosts/nixvm` coherent |
+
+Deterministic: two runs give identical groups (diffed). Coverage: 519 grouped + 13 chores + 66
+copies + 364 PR-merge commits = 962 read. A fabricated fixture (`scripts/test/group-fixture.json`)
+runs in the offline gate: identical output twice, closing links join, unscoped issues do not
+chain, chores/copies/merges counted, no group over 15. `max_groups` now defaults to 100.
+
+| Rejected | Why it lost |
+|---|---|
+| Model judgment with grain rules (`8c9fe00`) | still not reproducible; a coverage gap is only seen after the fact |
+| Title scope only | leaves 41 % of PRs unkeyed |
+| Embedding clustering | adds a model, a threshold to tune, and still needs a size cap |
+
 ## 5. Rejected
 
 | Option | Why it lost |

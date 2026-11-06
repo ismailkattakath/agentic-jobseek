@@ -1,0 +1,460 @@
+{
+ "prs": [
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 1,
+   "title": "feat(billing): invoice totals",
+   "html_url": "https://github.com/acme/widgets/pull/1",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": [
+    "src/billing/invoice.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 2,
+   "title": "fix(billing): rounding",
+   "html_url": "https://github.com/acme/widgets/pull/2",
+   "body": "Closes #10. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. Fixes rounding. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": [
+    "src/billing/round.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 3,
+   "title": "chore(deps): bump left-pad",
+   "html_url": "https://github.com/acme/widgets/pull/3",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": []
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 4,
+   "title": "release: v1.2.0",
+   "html_url": "https://github.com/acme/widgets/pull/4",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": []
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 5,
+   "title": "docs, ci",
+   "html_url": "https://github.com/acme/widgets/pull/5",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": [
+    ".github/workflows/ci.yml"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 6,
+   "title": "search",
+   "html_url": "https://github.com/acme/widgets/pull/6",
+   "body": "Adds the search index. Adds the search index. Adds the search index. Adds the search index. Adds the search index. Adds the search index. Adds the search index. Adds the search index. Adds the search index. Adds the search index. Adds the search index. Adds the search index. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": [
+    "src/search/index.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 100,
+   "title": "feat(reports): report 0",
+   "html_url": "https://github.com/acme/widgets/pull/100",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r0.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 101,
+   "title": "feat(reports): report 1",
+   "html_url": "https://github.com/acme/widgets/pull/101",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-06T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r1.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 102,
+   "title": "feat(reports): report 2",
+   "html_url": "https://github.com/acme/widgets/pull/102",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-07T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r2.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 103,
+   "title": "feat(reports): report 3",
+   "html_url": "https://github.com/acme/widgets/pull/103",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r3.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 104,
+   "title": "feat(reports): report 4",
+   "html_url": "https://github.com/acme/widgets/pull/104",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-06T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r4.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 105,
+   "title": "feat(reports): report 5",
+   "html_url": "https://github.com/acme/widgets/pull/105",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-07T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r5.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 106,
+   "title": "feat(reports): report 6",
+   "html_url": "https://github.com/acme/widgets/pull/106",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r6.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 107,
+   "title": "feat(reports): report 7",
+   "html_url": "https://github.com/acme/widgets/pull/107",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-06T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r7.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 108,
+   "title": "feat(reports): report 8",
+   "html_url": "https://github.com/acme/widgets/pull/108",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-07T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r8.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 109,
+   "title": "feat(reports): report 9",
+   "html_url": "https://github.com/acme/widgets/pull/109",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r9.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 110,
+   "title": "feat(reports): report 10",
+   "html_url": "https://github.com/acme/widgets/pull/110",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-06T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r10.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 111,
+   "title": "feat(reports): report 11",
+   "html_url": "https://github.com/acme/widgets/pull/111",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-07T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r11.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 112,
+   "title": "feat(reports): report 12",
+   "html_url": "https://github.com/acme/widgets/pull/112",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r12.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 113,
+   "title": "feat(reports): report 13",
+   "html_url": "https://github.com/acme/widgets/pull/113",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-06T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r13.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 114,
+   "title": "feat(reports): report 14",
+   "html_url": "https://github.com/acme/widgets/pull/114",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-07T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r14.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 115,
+   "title": "feat(reports): report 15",
+   "html_url": "https://github.com/acme/widgets/pull/115",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-05T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r15.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 116,
+   "title": "feat(reports): report 16",
+   "html_url": "https://github.com/acme/widgets/pull/116",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-06T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r16.py"
+   ]
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 117,
+   "title": "feat(reports): report 17",
+   "html_url": "https://github.com/acme/widgets/pull/117",
+   "body": "Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. Implements the change. ",
+   "pull_request": {
+    "merged_at": "2026-01-07T10:00:00Z"
+   },
+   "files": [
+    "src/reports/r17.py"
+   ]
+  }
+ ],
+ "issues": [
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 10,
+   "title": "rounding is off by one cent",
+   "html_url": "https://github.com/acme/widgets/issues/10",
+   "body": "Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. ",
+   "created_at": "2026-01-04T09:00:00Z",
+   "state": "open",
+   "labels": []
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 11,
+   "title": "dark mode for the dashboard",
+   "html_url": "https://github.com/acme/widgets/issues/11",
+   "body": "Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. ",
+   "created_at": "2026-01-04T09:00:00Z",
+   "state": "open",
+   "labels": []
+  },
+  {
+   "repository_url": "https://api.github.com/repos/acme/widgets",
+   "number": 12,
+   "title": "keyboard shortcuts",
+   "html_url": "https://github.com/acme/widgets/issues/12",
+   "body": "Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. Specification for the change. ",
+   "created_at": "2026-01-04T09:00:00Z",
+   "state": "open",
+   "labels": []
+  }
+ ],
+ "commits": [
+  {
+   "sha": "a1",
+   "repository": {
+    "full_name": "acme/widgets"
+   },
+   "html_url": "https://github.com/acme/widgets/commit/a1",
+   "parents": [
+    {}
+   ],
+   "commit": {
+    "message": "feat(billing): currency table",
+    "author": {
+     "date": "2026-01-06T12:00:00Z"
+    },
+    "committer": {
+     "name": "Jane Doe"
+    }
+   },
+   "files": [
+    "src/billing/currency.py"
+   ]
+  },
+  {
+   "sha": "a1copy",
+   "repository": {
+    "full_name": "acme/widgets-backup"
+   },
+   "html_url": "https://github.com/acme/widgets-backup/commit/a1copy",
+   "parents": [
+    {}
+   ],
+   "commit": {
+    "message": "feat(billing): currency table",
+    "author": {
+     "date": "2026-01-06T12:00:00Z"
+    },
+    "committer": {
+     "name": "Jane Doe"
+    }
+   },
+   "files": []
+  },
+  {
+   "sha": "b2",
+   "repository": {
+    "full_name": "acme/widgets"
+   },
+   "html_url": "https://github.com/acme/widgets/commit/b2",
+   "parents": [
+    {}
+   ],
+   "commit": {
+    "message": "Merge pull request #1",
+    "author": {
+     "date": "2026-01-06T12:00:00Z"
+    },
+    "committer": {
+     "name": "GitHub"
+    }
+   },
+   "files": []
+  },
+  {
+   "sha": "c3",
+   "repository": {
+    "full_name": "acme/widgets"
+   },
+   "html_url": "https://github.com/acme/widgets/commit/c3",
+   "parents": [
+    {}
+   ],
+   "commit": {
+    "message": "fix(billing): rounding (#2)",
+    "author": {
+     "date": "2026-01-06T12:00:00Z"
+    },
+    "committer": {
+     "name": "Jane Doe"
+    }
+   },
+   "files": []
+  },
+  {
+   "sha": "d4",
+   "repository": {
+    "full_name": "acme/widgets"
+   },
+   "html_url": "https://github.com/acme/widgets/commit/d4",
+   "parents": [
+    {},
+    {}
+   ],
+   "commit": {
+    "message": "tweak",
+    "author": {
+     "date": "2026-01-06T12:00:00Z"
+    },
+    "committer": {
+     "name": "Jane Doe"
+    }
+   },
+   "files": []
+  }
+ ],
+ "gitlab": [
+  {
+   "project": "jane/side",
+   "sha": "e5",
+   "date": "2026-01-06T08:00:00Z",
+   "message": "feat(cli): add a flag\n\nLonger body. feat(cli): add a flag\n\nLonger body. feat(cli): add a flag\n\nLonger body. feat(cli): add a flag\n\nLonger body. feat(cli): add a flag\n\nLonger body. ",
+   "files": [
+    "cli/main.py"
+   ]
+  }
+ ]
+}

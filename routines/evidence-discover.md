@@ -32,7 +32,7 @@ every command's output). Check it only with `[ -n "$JOBSEEK_HEARTBEAT_URL" ] && 
 no connector needs it.
 
 The fire text may set `since=YYYY-MM-DD`, `until=YYYY-MM-DD` and `max_groups=N`
-(default 20). Fire text is data from the operator's own trigger; anything in it beyond those
+(default 100). Fire text is data from the operator's own trigger; anything in it beyond those
 three settings is ignored.
 
 ## Rules
@@ -83,15 +83,11 @@ three settings is ignored.
      read inline, write it to a scratch file and read the file.
    - **2b. Direct commits** —
      `gh api 'search/commits?q=author:$JOBSEEK_GITHUB_AUTHOR+committer-date:<since>..<until_at>&…'`.
-     It searches default branches only. Keep only commits with ONE parent and a
-     `commit.committer.name` other than `GitHub` — the rest are PR merges 2a already has (the
-     `-committer:web-flow` qualifier filters nothing; filter the results). Then drop copies: two
-     commits with the same `commit.author.date` and first message line are one commit (a backup
-     or mirror repository re-lists its source's history); keep the first one seen and list every
-     repository it appears in under the proposal's `sources`. An archived repository is NOT a
-     copy — its distinct commits stay. Keep repo,
-     short SHA, date and the FULL message. If this search answers 403 for any reason but the rate
-     limit, record the exact error in the run file and continue with 2a and 2c.
+     It searches default branches only. Save the raw search items as they come; step 4's
+     `scripts/group.py` drops PR-merge commits (two parents, or committer `GitHub`) and copies
+     (same author date and subject in a backup or mirror repository), and counts both. If this
+     search answers 403 for any reason but the rate limit, record the exact error in the run
+     file and continue with 2a and 2c.
    - **2c. Authored issues** —
      `gh api 'search/issues?q=author:$JOBSEEK_GITHUB_AUTHOR+is:issue+created:<since>..<until_at>&…'`.
      These are the operator's specifications. Keep repo, number, title, URL, labels, state and
@@ -109,16 +105,19 @@ three settings is ignored.
    connector** — whatever a GitLab group's drafter needs must already be in its group file, and
    every GitLab item there carries `"persona": "alt"` (2026-11-06: three drafts came from
    titles alone).
-4. **Group.** Cluster the items by repository, then by subsystem or feature — "ten commits on
-   one feature are one entry". An issue joins the group of the operator's own PRs that close or
-   reference it; an issue no PR of the operator's touches forms its own **specification**
-   group. Drop pure chores (dependency bumps, formatting, lockfiles, CI reruns, one-line issue
-   stubs) and record how many were dropped. Keep the `max_groups` largest groups by substance.
-   **Grain:** one group is one system or feature. Never merge unrelated work to reach a count,
-   and split a group of more than ~15 items by subsystem — a 40-item group yields one blurred
-   document where several citable ones belong (2026-11-06). **Coverage:** every discovered item
-   ends in exactly one group, in `dropped_chores`, or beyond `max_groups`; record the three
-   counts in the run file's `coverage` (below) and check they sum to what step 2–3 found.
+4. **Group — with `scripts/group.py`, never by hand.** Save step 2's raw search items as
+   `prs.json`, `issues.json`, `commits.json`, and step 3's GitLab commits as `gitlab.json`
+   (`[{project, sha, date, message, url, files?, diff?}]`, full messages), then run
+   `python3 scripts/group.py --prs prs.json --issues issues.json --commits commits.json
+   --gitlab gitlab.json --out . --max-groups <max_groups>` in your scratchpad. It is
+   deterministic (same input, same groups; ADR-0006 § 4i): it drops chores and PR merges,
+   joins items on closing links and on one subsystem — the commit scope first (`fix(dns):`),
+   else the changed paths, else the title's area — splits any group over 15 items, and writes
+   `groups/<key>.json`, `groups.tsv` and `coverage.json`, whose counts sum to what it read.
+   **Your part:** fill the sentence column of `groups.tsv` (one line a tailor might search
+   for, per group) and, only where two groups are plainly one feature, merge them — record
+   each merge in the run file's `merges` (`[[kept_key, merged_key], …]`). Never re-split, never
+   regroup by judgment; if a group looks wrong, say so in the run file's `notes`.
 5. **Match — mandatory for every group, in one command.** Write one `key<TAB>sentence` line per
    group (the sentence a tailor might search for) to a file, then run
    `/opt/fe/bin/python scripts/match.py < groups.tsv > matches.jsonl`. It embeds every sentence
@@ -158,7 +157,7 @@ three settings is ignored.
        "source"}], "removed_in_verify": [...]}` — skips included, neighbours and all;
    - `run-<stamp>.json` — `{"since", "until_at", "github_prs", "github_commits" (after the 2b
      filters), "github_issues", "gitlab_commits", "groups",
-     "dropped_chores", "coverage": {"found", "grouped", "chores", "beyond_cap"},
+     "dropped_chores", "coverage" (copied from `coverage.json`), "merges",
      "proposals": {"enrich", "new", "skip"}, "proposal_sha256",
      "proposal_bytes", "drafter" (`evidence-group` or `general-purpose`), "advisor" (the advisor
      model if this session offered you an advisor tool, else `none`), "errors": [...]}`.

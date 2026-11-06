@@ -154,6 +154,21 @@
                 if env -u JOBSEEK_DRIVE_DIR bash scripts/new-application.sh a b; then
                   echo "an unset JOBSEEK_DRIVE_DIR was not refused" >&2; exit 1
                 fi
+                # Grouping (ADR-0006 § 4i): fabricated items, offline. Same input → same groups;
+                # coverage sums; no group over 15; a closing link joins; unscoped issues don't chain.
+                python3 scripts/group.py --input scripts/test/group-fixture.json --out g1 --offline
+                python3 scripts/group.py --input scripts/test/group-fixture.json --out g2 --offline
+                diff -r g1/groups g2/groups
+                python3 - <<'PY'
+                import json, glob
+                cov = json.load(open("g1/coverage.json"))
+                groups = {p.split("/")[-1][:-5]: [i["id"] for i in json.load(open(p))["items"]] for p in glob.glob("g1/groups/*.json")}
+                assert cov["largest_group"] <= 15, cov
+                assert cov["chores"] == 2 and cov["filtered"] == {"copies": 1, "duplicate_of_pr": 1, "pr_merge_commits": 2}, cov
+                billing = groups["widgets-billing"]
+                assert {"acme/widgets#2", "acme/widgets#10"} <= set(billing), billing
+                assert "acme/widgets#11" not in billing and "acme/widgets#12" not in billing, billing
+                PY
                 # Own theme: render JSON Resume's public sample (MIT), then gate it — ATS-style text
                 # order + completeness, and PDF/UA-1 conformance. A real résumé never enters the build.
                 export HOME="$PWD"   # typst and veraPDF want a writable home in the sandbox
