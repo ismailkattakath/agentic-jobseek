@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "kattakath-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1794607114,
+        "narHash": "sha256-VE1tMy7oBemQp3N0IDxk1HPp4nuFPbfGzspob2OWCMo=",
+        "owner": "kattakath",
+        "repo": "skills",
+        "rev": "be5d17d513f5dabb00f4bf617200311c5d9493ae",
+        "type": "github"
+      },
+      "original": {
+        "owner": "kattakath",
+        "repo": "skills",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1793494649,
@@ -18,6 +34,7 @@
     },
     "root": {
       "inputs": {
+        "kattakath-skills": "kattakath-skills",
         "nixpkgs": "nixpkgs",
         "treefmt-nix": "treefmt-nix"
       }

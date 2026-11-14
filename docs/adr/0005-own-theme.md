@@ -1,6 +1,14 @@
 # ADR-0005 — Our own theme: Typst, single column, Material 3, gated text layer
 
-**Status:** accepted, 2026-11-02. Supersedes ADR-0003 §4's "stay on academic-cv-lite". Every
+**Status:** accepted, 2026-11-02. **Amended 2026-11-14:** the fonts, colours and the type and
+spacing tokens of § 4 no longer live in this repo. They come from the `house-style` Typst
+package (`github:kattakath/skills`, flake input `kattakath-skills`), which the operator's
+long-form PDFs and Google Docs share. The font is the same; the colours are now that style's
+Material blue (primary `#0B57D0`, text `#1F1F1F`, meta `#444746`, dividers `#C4C7C5`). Measured
+on one tailored résumé: same 5 pages, identical extracted text, `theme-check` PASS in both
+readers. § 4 below records the original values and the reasoning, which still holds.
+
+**Original status:** accepted, 2026-11-02. Supersedes ADR-0003 §4's "stay on academic-cv-lite". Every
 choice below was measured, mostly on the master résumé and one tailored application (the
 Lead Developer posting), with four text readers and two ATS checkers.
 
