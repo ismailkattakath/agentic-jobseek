@@ -18,6 +18,12 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # The house style: fonts, colours and the Typst token package the résumé theme imports
+    # (theme/lib.typ). Source only — no flake outputs are used.
+    kattakath-skills = {
+      url = "github:kattakath/skills";
+      flake = false;
+    };
   };
 
   outputs =
@@ -25,6 +31,7 @@
       self,
       nixpkgs,
       treefmt-nix,
+      kattakath-skills,
     }:
     let
       # x86_64-darwin is absent on purpose: nixpkgs-unstable throws on it.
@@ -37,6 +44,9 @@
       inherit (nixpkgs) lib;
 
       treefmtEval = forAll (_: pkgs: treefmt-nix.lib.evalModule pkgs ./treefmt.nix);
+
+      # What scripts/theme-render.sh reads as $HOUSE_STYLE. ONE binding for devShells AND the gate.
+      houseStyle = "${kattakath-skills}/plugins/house-style/skills/house-style";
 
       # ONE list read by devShells AND toolchain-complete, so they cannot drift.
       devPackagesFor =
@@ -71,6 +81,7 @@
         _system: pkgs: {
           default = pkgs.mkShell {
             packages = devPackagesFor pkgs;
+            HOUSE_STYLE = houseStyle;
             shellHook = ''
               [ -n "''${JOBSEEK_DRIVE_DIR:-}" ] || echo "agentic-jobseek: JOBSEEK_DRIVE_DIR is unset — see .envrc"
             '';
@@ -182,6 +193,7 @@
                 # Own theme: render JSON Resume's public sample (MIT), then gate it — ATS-style text
                 # order + completeness, and PDF/UA-1 conformance. A real résumé never enters the build.
                 export HOME="$PWD"   # typst and veraPDF want a writable home in the sandbox
+                export HOUSE_STYLE=${houseStyle}
                 bash scripts/theme-render.sh theme/test/sample.resume.json sample.pdf
                 python3 scripts/theme-check.py theme/test/sample.resume.json sample.pdf
                 verapdf --flavour ua1 --format text sample.pdf > vera.txt

@@ -82,7 +82,7 @@ comments, so this paragraph is the settings comment.)
 |---|---|
 | `scripts/` | The tools: scaffold, render, gate, posting extractor, evidence query and sync |
 | `templates/application/` | The prototype every role folder is copied from |
-| `theme/` | The résumé PDF theme (Typst): `lib.typ` tokens + sections, `resume.typ` layout, vendored fonts (OFL), the public sample used by the gate |
+| `theme/` | The résumé PDF theme (Typst): `lib.typ` sections, `resume.typ` layout, the public sample used by the gate. Fonts, colours and type/spacing tokens are NOT here: they come from the `house-style` Typst package (`github:kattakath/skills`, pinned as the `kattakath-skills` flake input; `nix develop` exports `HOUSE_STYLE`) |
 | `.claude/rules/` | Policy, one file per rule — read the directory |
 | `.claude/skills/` | The procedures, one directory per skill — read the directory |
 | `apps-script/inbox-drop/` | The Drive drop the cloud routine uploads proposals to (ADR-0006 § 4h); deployed by `scripts/drop-deploy.sh` (clasp, the operator's login), its TOKEN and FOLDER_ID live in Script Properties |

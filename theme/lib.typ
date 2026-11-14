@@ -10,59 +10,19 @@
 #let get(d, key) = d.at(key, default: none)
 #let many(d, key) = d.at(key, default: ())
 
-// ── Typography: Material 3, read at the source 2026-11-02 ────────────────────────────────────
-// Tokens: m3.material.io/styles/typography/type-scale-tokens (baseline + emphasized sets).
-// Roles: m3.material.io/styles/typography/applying-type — Display "short, important text",
-// Headline primary regions, Title secondary regions, Body long passages, Label captions;
-// default text colour on-surface; links primary AND underlined.
-// Each token: (size, line height, tracking) in spec px, plus weight.
-// Print scale: tokens are CSS px on the web; CSS Values 4 fixes 1px = 0.75pt, so printing the
-// web scale as-is gives pt = px × 0.75 (Body Medium 14 → 10.5pt).
+// ── Tokens: the house-style Typst package (github:kattakath/skills, plugins/house-style) ─────
+// Fonts, colours, the Material 3 print scale, the spacing scale and `tok`/`styled` all come
+// from it, so this résumé, the long-form PDFs and the Google Docs share one definition. The
+// reasoning behind each token (type roles, px × 0.75 = pt, optical sizes, colour roles, the
+// exact line pitch) is in docs/adr/0005-own-theme.md § 4. Only the role → token map is ours.
+#import "@local/house-style:1.0.0": color, font, k, scale, space, styled, tok
 #let T = (
-  font: "Google Sans 17pt", // the 17 optical-size cut (text sizes)
-  // Optical size ("use an optical size that matches your type size", editorial-treatments):
-  // Google Sans opsz spans 17–18 only; the 18 cut ("Google Sans") for ≥18pt printed text.
-  name: (size: 36, lh: 44, track: 0, weight: 400, font: "Google Sans"), // Display Small
-  section: (size: 24, lh: 32, track: 0, weight: 400, font: "Google Sans"), // Headline Small
-  entry: (size: 16, lh: 24, track: 0.15, weight: 500), // Title Medium: jobs, projects
-  body: (size: 14, lh: 20, track: 0.25, weight: 400), // Body Medium (Emphasized = weight 500)
-  label: (size: 12, lh: 16, track: 0.5, weight: 500), // Label Medium: dates, roles, contact
-  // Colour roles, baseline light scheme: @material/web 2.4.1 tokens v0_192
-  // (_md-sys-color, _md-ref-palette). Page = surface-container-lowest (white).
-  color: (
-    text: rgb("#1d1b20"), // on-surface (neutral10)
-    meta: rgb("#49454f"), // on-surface-variant (neutral-variant30)
-    link: rgb("#6750a4"), // primary (primary40)
-    primary: rgb("#6750a4"), // primary (primary40): top-edge strip
-    outline-variant: rgb("#cac4d0"), // outline-variant (neutral-variant80): dividers
-  ),
+  name: scale.display-small,
+  section: scale.headline-small,
+  entry: scale.title-medium, // jobs, projects
+  body: scale.body-medium, // Emphasized = weight 500
+  label: scale.label-medium, // dates, roles, contact
 )
-#let k = 0.75pt // per spec px
-
-// ── Spacing: M3 system spacing tokens (m3.material.io/styles/spacing/tokens) ─────────────────
-// An 8dp scale, space100 = 8dp. "Add custom system spacing … follow the multiplier pattern"
-// (spacing/applying-spacing): space1200 = 96dp is ours — exactly 1in at 1px = 0.75pt, the side
-// margin the line-length evidence asked for. Every gap below is a token, never a raw length.
-#let sp = (
-  "0": 0, "25": 2, "50": 4, "75": 6, "100": 8, "125": 10, "150": 12, "175": 14, "200": 16,
-  "250": 20, "300": 24, "400": 32, "450": 36, "500": 40, "600": 48, "700": 56, "800": 64,
-  "900": 72,
-  "1200": 96, // custom (multiplier pattern)
-)
-#let space(n) = sp.at(str(n)) * k
-
-// Apply a token: size, tracking, weight, optical cut, and an exact line pitch. With par leading
-// 0 a line's pitch is top-edge − bottom-edge, so splitting the spec's half-leading around an
-// 0.8/0.2 em box makes every line exactly `lh` tall.
-#let tok(t) = (
-  size: t.size * k,
-  tracking: t.track * k,
-  weight: t.weight,
-  ..if "font" in t { (font: t.font) } else { (:) },
-  top-edge: 0.8 * t.size * k + (t.lh - t.size) * k / 2,
-  bottom-edge: -(0.2 * t.size * k + (t.lh - t.size) * k / 2),
-)
-#let styled(t, body) = text(..tok(t), body)
 
 #let months = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 #let fmt(d) = if d == none { "Present" } else if d.len() >= 7 {
@@ -81,8 +41,8 @@
   set document(title: name + " — Résumé", author: name)
   set page(paper: "us-letter", margin: (x: space(1200), y: space(600))) // 1in sides, 0.5in top/bottom
   // Primary strip along the top edge of every page: a page background, so a tagged-PDF artifact.
-  set page(background: place(top + left, rect(width: 100%, height: space(100), fill: T.color.primary)))
-  set text(lang: "en", region: "CA", font: T.font, hyphenate: false, fill: T.color.text, ..tok(T.body))
+  set page(background: place(top + left, rect(width: 100%, height: space(100), fill: color.primary)))
+  set text(lang: "en", region: "CA", font: font, hyphenate: false, fill: color.text, ..tok(T.body))
   set par(justify: false, leading: 0pt, spacing: space(125))
   set list(spacing: space(0), indent: space(0), body-indent: space(100))
   set strong(delta: 100) // 400 → 500 = Emphasized Body Medium
@@ -90,13 +50,13 @@
   // into "eventdriven" and split "Python/" + "FastAPI" into "Python/ FastAPI" (both measured).
   // Boxing keeps the real characters in the text; only line breaking changes.
   show regex("~?[A-Za-z0-9.]+([-/][A-Za-z0-9.]+)+"): it => box(it)
-  show link: it => underline(text(fill: T.color.link, it))
+  show link: it => underline(text(fill: color.primary, it))
   show heading.where(level: 1): it => block(below: space(0), styled(T.name, it.body))
   // M3 divider (components/divider/specs; @material/web md-comp-divider: 1dp, outline-variant,
   // full width) between sections — not above the first, which follows the header directly.
   show heading.where(level: 2): it => context {
     if query(heading.where(level: 2).before(here())).len() > 1 {
-      block(above: space(300), below: space(0), line(length: 100%, stroke: 1 * k + T.color.outline-variant))
+      block(above: space(300), below: space(0), line(length: 100%, stroke: 1 * k + color.outline-variant))
     }
     block(above: space(300), below: space(100), styled(T.section, it.body))
   }
@@ -106,7 +66,7 @@
 }
 
 // Dates / roles / URL line under an entry heading.
-#let meta(body) = styled(T.label, text(fill: T.color.meta, body))
+#let meta(body) = styled(T.label, text(fill: color.meta, body))
 
 #let header() = {
   heading(level: 1, b.at("name", default: ""))
